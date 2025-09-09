@@ -1,0 +1,97 @@
+import numpy as np
+
+# Define Parameters
+theta_1 = np.radians(120)
+gamma_1 = np.radians(60)
+h = 5
+w = 10
+L_1 = 15
+alpha = np.radians(30)
+
+'''# Define Segment 1 when alpha = 0. This has been verified with the SolidWorks model.
+c_0_1 = np.array([[0],
+                  [0],
+                  [0]])
+c_0_2 = np.array([[w],
+                  [0],
+                  [0]])
+c_0_3 = np.array([[w+h],
+                  [0],
+                  [0]])
+c_0_4 = np.array([[h],
+                  [0],
+                  [0]])
+c_1_1 = np.array([[0],
+                  [L_1],
+                  [0]])
+c_1_2 = np.array([[w],
+                  [L_1 - w/np.tan(gamma_1)],
+                  [0]])
+c_1_3 = np.array([[w+h],
+                  [L_1 - w/np.tan(gamma_1) - h/np.tan(theta_1)],
+                  [0]])
+c_1_4 = np.array([[h],
+                  [L_1 - h/np.tan(theta_1)],
+                  [0]])'''
+
+'''# Define Segment 1 when alpha = 90. This has been verified with the SolidWorks model.
+c_0_1 = np.array([[0],
+                  [0],
+                  [0]])
+c_0_2 = np.array([[w],
+                  [0],
+                  [0]])
+c_0_3 = np.array([[w],
+                  [0],
+                  [h]])
+c_0_4 = np.array([[0],
+                  [0],
+                  [h]])
+c_1_1 = np.array([[0],
+                  [L_1],
+                  [0]])
+c_1_2 = np.array([[w],
+                  [L_1 - w/np.tan(gamma_1)],
+                  [0]])
+c_1_3 = np.array([[w],
+                  [L_1 - w/np.tan(gamma_1) - h/np.tan(theta_1)],
+                  [0]])
+c_1_4 = np.array([[0],
+                  [L_1 - h/np.tan(theta_1)],
+                  [h]])'''
+
+# Define Segment 1 for any alpha. This has been verified with a SolidWorks model.
+c_0_1 = np.array([[0],
+                  [0],
+                  [0]])
+c_0_2 = np.array([[w],
+                  [0],
+                  [0]])
+c_0_3 = np.array([[w+h*np.cos(alpha)],
+                  [0],
+                  [h*np.sin(alpha)]])
+c_0_4 = np.array([[h*np.cos(alpha)],
+                  [0],
+                  [h*np.sin(alpha)]])
+c_1_1 = np.array([[0],
+                  [L_1],
+                  [0]])
+c_1_2 = np.array([[w],
+                  [L_1 - w/np.tan(gamma_1)],
+                  [0]])
+c_1_3 = np.array([[w + h*np.cos(alpha)],
+                  [L_1 - w/np.tan(gamma_1) - h/np.tan(theta_1)],
+                  [h*np.sin(alpha)]])
+c_1_4 = np.array([[h*np.cos(alpha)],
+                  [L_1 - h/np.tan(theta_1)],
+                  [h*np.sin(alpha)]])
+
+if __name__ == '__main__':
+    print(f'c_0_1 = ({c_0_1[0][0]},{c_0_1[1][0]},{c_0_1[2][0]})\n'
+          f'c_0_2 = ({c_0_2[0][0]},{c_0_2[1][0]},{c_0_2[2][0]})\n'
+          f'c_0_3 = ({c_0_3[0][0]},{c_0_3[1][0]},{c_0_3[2][0]})\n'
+          f'c_0_4 = ({c_0_4[0][0]},{c_0_4[1][0]},{c_0_4[2][0]})\n'
+          f'c_1_1 = ({c_1_1[0][0]},{c_1_1[1][0]},{c_1_1[2][0]})\n'
+          f'c_1_2 = ({c_1_2[0][0]},{c_1_2[1][0]},{c_1_2[2][0]})\n'
+          f'c_1_3 = ({c_1_3[0][0]},{c_1_3[1][0]},{c_1_3[2][0]})\n'
+          f'c_1_4 = ({c_1_4[0][0]},{c_1_4[1][0]},{c_1_4[2][0]})\n')
