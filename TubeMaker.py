@@ -45,3 +45,7 @@ class Tube:
         ax.set_zlabel("Z")
 
         plt.show()
+
+
+
+print("hello")
