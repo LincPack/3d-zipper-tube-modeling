@@ -12,18 +12,16 @@ class Tube:
         self.alpha = alpha
 
         self.num_sections = 0
-        self.base = [[[0, 0, 0], 
-                     [width, 0, 0], 
-                     [width+self.height/np.tan(self.alpha), 0, height], 
-                     [self.height/np.tan(self.alpha), 0, height]]]
-        
-        self.working_points = [p.copy() for p in self.base]
-        self.sections = []
-        self.sections.append(self.base)
+        self.base = np.array([[0, 0, 0, 1], 
+                     [width, 0, 0, 1], 
+                     [width+self.height/np.tan(self.alpha), 0, height, 1], 
+                     [self.height/np.tan(self.alpha), 0, height, 1]])
+        self.boxes = []
+        self.boxes.append(self.base)
         self.transformations = []
  
     def add_joint(self, l, theta):
-        self.transformations.append(self.trans2D([l, theta]))
+        self.transformations.append(self.trans2D(l, theta))
         self.num_sections += 1
         print(f"Joint added with the following parameters: l:{l}, theta:{theta}")
         return
@@ -31,7 +29,7 @@ class Tube:
     def rm_joint(self, num_joint_removed):
         counter = num_joint_removed
         while self.num_sections > 0 and counter > 0:
-            self.sections.pop()
+            self.boxes.pop()
             counter -= 1
             self.num_sections -= 1
         print(f"{num_joint_removed} joint(s) removed")
@@ -62,8 +60,35 @@ class Tube:
         # Obtaining List of points
         print("Obtaining list of points")
 
+        self.working_points = self.base.copy()
+
+        for item in self.transformations:
+            new_points = np.array([item @ p for p in self.working_points])
+            self.boxes.append(new_points)
+            self.working_points = new_points
+
+
+
+
         # Plotting the boxes
-        boxes = Poly3DCollection(self.base, alpha=0.25, facecolor='cyan', edgecolor = "black")
-        ax.add_collection3d(boxes)    
+        if self.num_sections > 1:
+            for i in range(len(self.boxes)-1):
+                b1 = self.boxes[i]
+                b2 = self.boxes[i+1]
+
+                # build 6 faces
+                faces = [
+                    [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],  # side 1
+                    [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],  # side 2
+                    [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],  # side 3
+                    [b1[3][:3], b1[0][:3], b2[0][:3], b2[3][:3]],  # side 4
+                    [b1[0][:3], b1[1][:3], b1[2][:3], b1[3][:3]],  # bottom
+                    [b2[0][:3], b2[1][:3], b2[2][:3], b2[3][:3]]   # top
+                ]
+                ax.add_collection3d(Poly3DCollection(faces, alpha=0.3, facecolor="cyan"))
+
+        else:
+            ax.add_collection3d(Poly3DCollection(self.boxes, alpha=0.3, facecolor="cyan"))
+  
         
         plt.show()
