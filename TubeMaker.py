@@ -3,29 +3,53 @@ import numpy as np
 from numpy import sin, cos, tan, arctan
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-
 class Tube:
 
     def __init__(self, width, height, alpha):
         self.width = width
         self.height = height
-        self.alpha = alpha
+        self.alpha = np.deg2rad(alpha)
 
         self.num_sections = 1
         self.base = np.array([[0, 0, 0, 1], 
-                     [width, 0, 0, 1], 
-                     [width+self.height/np.tan(self.alpha), 0, height, 1], 
-                     [self.height/np.tan(self.alpha), 0, height, 1]])
+                    [width, 0, 0, 1], 
+                    [width+self.height/np.tan(self.alpha), 0, height, 1], 
+                    [self.height/np.tan(self.alpha), 0, height, 1]])
+        
+        
         self.boxes = []
         self.boxes.append(self.base)
         self.transformations = []
         self.total_length = 0
+        self.color_list = ['red', 'green', 'blue']
+        self.theta_list = []
+        self.length_list = []
  
     def add_joint(self, l, theta):
-        self.transformations.append(self.trans2D(l, np.deg2rad(theta)))
+        theta_rad = np.deg2rad(theta)
+        self.theta_list.append(theta_rad)
+        self.length_list.append(l)
+        
+        if self.num_sections == 1:
+
+            second_set = np.array([[0, l, 0, 1],
+                                   [self.width, l, 0, 1],
+                                   [self.width+self.height*np.cos(self.alpha), l - self.height/np.tan(theta_rad), self.height*np.sin(self.alpha), 1],
+                                   [self.height*np.cos(self.alpha), l-self.height/np.tan(theta_rad), self.height*np.sin(self.alpha), 1]])
+            self.boxes.append(second_set)
+        
+        else:
+            self.transformations.append(self.trans2D(self.length_list[-2], self.theta_list[-2]))
+            total_trans = np.eye(4)
+            for item in self.transformations:
+                total_trans = total_trans@item
+
+            new_box = self.boxes[1]@total_trans.T
+            self.boxes.append(new_box)
+
         self.num_sections += 1
         print(f"Joint added with the following parameters: l:{l}, theta:{theta}")
-        self.total_length = self.total_length + l*np.cos(np.deg2rad(theta-90))
+        self.total_length = self.total_length + l*np.sin(theta_rad)
         return
 
     def trans2D(self, l, theta):
@@ -38,35 +62,32 @@ class Tube:
     def visualize(self):
         fig = plt.figure()
         ax = plt.axes(projection="3d")
-        ax.set_xlim([-0.5*self.width, 1.5*self.width])
-        ax.set_ylim([-2, self.total_length])
-        ax.set_zlim([-0.5*self.height, 1.5*self.height])
+        ax.set_xlim([-4*self.width, 4*self.width])
+        ax.set_ylim([-2, 1.5*self.total_length])
+        ax.set_zlim([-4*self.height, 4*self.height])
 
-        ax.plot([0, 2], [0, 0], [0, 0], color='r')  
-        ax.plot([0, 0], [0, 2], [0, 0], color='g')  
+        # for plane in self.boxes:
+        #     perfect_plane = np.array([plane[0][:3], plane[1][:3], plane[2][:3], plane[3][:3]])
+        #     ax.add_collection(Poly3DCollection([perfect_plane], alpha = 0.8, facecolor = 'cyan', edgecolor = 'black'))
+
+
+
+        
+
+        ax.plot([0, 2], [0, 0], [0, 0], color='r')
+        ax.plot([0, 0], [0, 2], [0, 0], color='g')
         ax.plot([0, 0], [0, 0], [0, 2], color='b')
 
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         ax.set_zlabel("Z")
 
-        # Obtaining List of points
-        print("Obtaining list of points")
-
-        self.working_points = self.base.copy()
-        
-
-        for item in self.transformations:
-            new_points = self.working_points @ item.T
-            self.boxes.append(new_points)
-            self.working_points = new_points
-
-
-
-
+        color_counter = 0
         # Plotting the boxes
         if self.num_sections > 1:
             for i in range(len(self.boxes)-1):
+                if color_counter > 2:
+                    color_counter = 0
                 b1 = self.boxes[i]
                 b2 = self.boxes[i+1]
 
@@ -79,10 +100,10 @@ class Tube:
                     [b1[0][:3], b1[1][:3], b1[2][:3], b1[3][:3]],  # bottom
                     [b2[0][:3], b2[1][:3], b2[2][:3], b2[3][:3]]   # top
                 ]
-                ax.add_collection3d(Poly3DCollection(faces, alpha=0.3, facecolor="cyan"))
-
+                ax.add_collection3d(Poly3DCollection(faces, alpha=0.8, facecolor = self.color_list[color_counter], edgecolor = "black"))
+                color_counter += 1
+    
         else:
-            ax.add_collection3d(Poly3DCollection(self.base, alpha=0.3, facecolor="cyan"))
-  
-        
+            ax.add_collection3d(Poly3DCollection(self.base, alpha=0.8, facecolor = self.color_list[color_counter], edgecolor = "black"))
+
         plt.show()
