@@ -83,7 +83,7 @@ def combined_matrix(parameter_list, s, f):
     gamma_list = parameter_list[2]
 
     # Create list of arrays. Each array represents a matrix that transforms from one frame to the next immediate frame.
-    T_list = [0]
+    T_list = []
     i = f
     while i <= s - 1:
         T_i = individual_matrix(L_list[i], theta_list[i], gamma_list[i])
@@ -91,10 +91,10 @@ def combined_matrix(parameter_list, s, f):
         i += 1
 
     # Matrix multiplication by mapping:
-    i = f
-    T_product = T_list[i]
-    while i < s - 1:
-        T_product = T_product @ T_list[i+1]
+    i = 1
+    T_product = T_list[0]
+    while i < len(T_list):
+        T_product = T_product @ T_list[i]
         i += 1
     T_combined = T_product
 
@@ -102,6 +102,7 @@ def combined_matrix(parameter_list, s, f):
 
 
 # This function returns the corner coordinate of segment s, corner type n, in frame f:
+# Note that this function does not currently work when (s < f), except for when (s = 0 and f = 1). This could probably be done, but it would take a lot of work, and probably wouldn't be very useful for design anyway.
 def corner_frame_f(s, n, f):
     if s == 0 and f == 1:
         if n == 1:
@@ -124,14 +125,16 @@ def corner_frame_f(s, n, f):
                                 [-h*cot(theta_0)],
                                 [h*sin(alpha)]])
             return c_s_n_f
-    if s == f:
+    elif s == f:
         c_s_n_f = corner_frame_s(s, n)
         return c_s_n_f
-    if s > f:
+    elif s > f:
         T = combined_matrix(parameters, s, f)
         c_s_n_s = np.append(corner_frame_s(s,n), np.array([[1]]), axis = 0)
         c_s_n_f = np.delete(T @ c_s_n_s, 3, axis=0)
         return c_s_n_f
+    else:
+        return "This code does not support situations when s < f. Please choose a frame that corresponds to your chosen segment or is less far down the tube than the segment. In other word, the condition s >= f must be true. An exception is when s = 0 and f = 1. These coordinates can be calculated if desired."
 
 
 if __name__ == '__main__':
@@ -160,6 +163,7 @@ if __name__ == '__main__':
                   [theta_0, theta_1, theta_2, theta_3],
                   [gamma_0, gamma_1, gamma_2, gamma_3]]
 
+    # Frame 1:
     c_0_1_1 = corner_frame_f(0, 1, 1)
     c_0_2_1 = corner_frame_f(0, 2, 1)
     c_0_3_1 = corner_frame_f(0, 3, 1)
@@ -180,26 +184,96 @@ if __name__ == '__main__':
     c_3_3_1 = corner_frame_f(3, 3, 1)
     c_3_4_1 = corner_frame_f(3, 4, 1)
 
-    print('Segment 0:')
-    print(f'c_0,1,1 = {c_0_1_1}')
-    print(f'c_0,2,1 = {c_0_2_1}')
-    print(f'c_0,3,1 = {c_0_3_1}')
-    print(f'c_0,4,1 = {c_0_4_1}\n')
+    # Frame 2:
+    c_0_1_2 = corner_frame_f(0, 1, 2)
+    c_0_2_2 = corner_frame_f(0, 2, 2)
+    c_0_3_2 = corner_frame_f(0, 3, 2)
+    c_0_4_2 = corner_frame_f(0, 4, 2)
 
-    print('Segment 1:')
-    print(f'c_1,1,1 = {c_1_1_1}')
-    print(f'c_1,2,1 = {c_1_2_1}')
-    print(f'c_1,3,1 = {c_1_3_1}')
-    print(f'c_1,4,1 = {c_1_4_1}\n')
+    c_1_1_2 = corner_frame_f(1, 1, 2)
+    c_1_2_2 = corner_frame_f(1, 2, 2)
+    c_1_3_2 = corner_frame_f(1, 3, 2)
+    c_1_4_2 = corner_frame_f(1, 4, 2)
 
-    print('Segment 2:')
-    print(f'c_2,1,1 = {c_2_1_1}')
-    print(f'c_2,2,1 = {c_2_2_1}')
-    print(f'c_2,3,1 = {c_2_3_1}')
-    print(f'c_2,4,1 = {c_2_4_1}\n')
+    c_2_1_2 = corner_frame_f(2, 1, 2)
+    c_2_2_2 = corner_frame_f(2, 2, 2)
+    c_2_3_2 = corner_frame_f(2, 3, 2)
+    c_2_4_2 = corner_frame_f(2, 4, 2)
 
-    print('Segment 3:')
-    print(f'c_3,1,1 = {c_3_1_1}')
-    print(f'c_3,2,1 = {c_3_2_1}')
-    print(f'c_3,3,1 = {c_3_3_1}')
-    print(f'c_3,4,1 = {c_3_4_1}\n')
+    c_3_1_2 = corner_frame_f(3, 1, 2)
+    c_3_2_2 = corner_frame_f(3, 2, 2)
+    c_3_3_2 = corner_frame_f(3, 3, 2)
+    c_3_4_2 = corner_frame_f(3, 4, 2)
+
+    # Frame 3:
+    c_0_1_3 = corner_frame_f(0, 1, 3)
+    c_0_2_3 = corner_frame_f(0, 2, 3)
+    c_0_3_3 = corner_frame_f(0, 3, 3)
+    c_0_4_3 = corner_frame_f(0, 4, 3)
+
+    c_1_1_3 = corner_frame_f(1, 1, 3)
+    c_1_2_3 = corner_frame_f(1, 2, 3)
+    c_1_3_3 = corner_frame_f(1, 3, 3)
+    c_1_4_3 = corner_frame_f(1, 4, 3)
+
+    c_2_1_3 = corner_frame_f(2, 1, 3)
+    c_2_2_3 = corner_frame_f(2, 2, 3)
+    c_2_3_3 = corner_frame_f(2, 3, 3)
+    c_2_4_3 = corner_frame_f(2, 4, 3)
+
+    c_3_1_3 = corner_frame_f(3, 1, 3)
+    c_3_2_3 = corner_frame_f(3, 2, 3)
+    c_3_3_3 = corner_frame_f(3, 3, 3)
+    c_3_4_3 = corner_frame_f(3, 4, 3)
+
+    print('Frame 1:')
+    # Segment 0 in Frame 1 looks the prettiest when printed. If you want the other coordinates to look like this, you could use the same approach or incorporate cleaning up the coordinates in a function
+    print(' Segment 0:')
+    print(f'        c_0,1,1 = {c_0_1_1[0][0].round(2), c_0_1_1[1][0].round(2), c_0_1_1[2][0].round(2)}')
+    print(f'        c_0,2,1 = {c_0_2_1[0][0].round(2), c_0_2_1[1][0].round(2), c_0_2_1[2][0].round(2)}')
+    print(f'        c_0,3,1 = {c_0_3_1[0][0].round(2), c_0_3_1[1][0].round(2), c_0_3_1[2][0].round(2)}')
+    print(f'        c_0,4,1 = {c_0_4_1[0][0].round(2), c_0_4_1[1][0].round(2), c_0_4_1[2][0].round(2)}\n')
+
+    print(' Segment 1:')
+    print(f'        c_1,1,1 = {c_1_1_1}')
+    print(f'        c_1,2,1 = {c_1_2_1}')
+    print(f'        c_1,3,1 = {c_1_3_1}')
+    print(f'        c_1,4,1 = {c_1_4_1}\n')
+
+    print(' Segment 2:')
+    print(f'        c_2,1,1 = {c_2_1_1}')
+    print(f'        c_2,2,1 = {c_2_2_1}')
+    print(f'        c_2,3,1 = {c_2_3_1}')
+    print(f'        c_2,4,1 = {c_2_4_1}\n')
+
+    print(' Segment 3:')
+    print(f'        c_3,1,1 = {c_3_1_1}')
+    print(f'        c_3,2,1 = {c_3_2_1}')
+    print(f'        c_3,3,1 = {c_3_3_1}')
+    print(f'        c_3,4,1 = {c_3_4_1}\n')
+
+    print('Frame 2:')
+    print(' Segment 1:')
+    print(f'        c_1,1,2 = {c_1_1_2}')
+    print(f'        c_1,2,2 = {c_1_2_2}')
+    print(f'        c_1,3,2 = {c_1_3_2}')
+    print(f'        c_1,4,2 = {c_1_4_2}\n')
+
+    print(' Segment 2:')
+    print(f'        c_2,1,2 = {c_2_1_2}')
+    print(f'        c_2,2,2 = {c_2_2_2}')
+    print(f'        c_2,3,2 = {c_2_3_2}')
+    print(f'        c_2,4,2 = {c_2_4_2}\n')
+
+    print(' Segment 3:')
+    print(f'        c_3,1,2 = {c_3_1_2}')
+    print(f'        c_3,2,2 = {c_3_2_2}')
+    print(f'        c_3,3,2 = {c_3_3_2}')
+    print(f'        c_3,4,2 = {c_3_4_2}\n')
+
+    print('Frame 3:')
+    print(' Segment 3:')
+    print(f'        c_3,1,3 = {c_3_1_3}')
+    print(f'        c_3,2,3 = {c_3_2_3}')
+    print(f'        c_3,3,3 = {c_3_3_3}')
+    print(f'        c_3,4,3 = {c_3_4_3}\n')
