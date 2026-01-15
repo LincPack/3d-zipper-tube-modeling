@@ -1,11 +1,11 @@
 from TubeMaker import Tube
 import numpy as np
 
-test = Tube(5, 5, 90)
-test.add_joint(5, 100)
-test.add_joint(5, 100)
-test.add_joint(3, 110)
-test.add_joint(5, 80)
+master = Tube(5, 5, 50)
+master.add_joint(5, 110)
+master.add_joint(5, 110)
+master.add_joint(5, 80)
+master.add_joint(5, 110)
+master.add_joint(5, 70)
 
-
-test.visualize()
+master.visualize('t')

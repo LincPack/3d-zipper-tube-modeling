@@ -3,6 +3,11 @@ import numpy as np
 from numpy import sin, cos, tan, arctan
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
+"""
+I'm pretty sure the only issue now is that the inital reflecting plane is not being shown correctly. All the lines travel in the correct direction,
+but it isn't showing the relationship between the reflecting plane.
+"""
+
 class Tube:
 
     def __init__(self, width, height, alpha=90):
