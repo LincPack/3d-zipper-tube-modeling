@@ -14,7 +14,11 @@ Redefined Tool Purpose:
 
 """Things I would like to make:
 - A visualization of the 3d zipper tube transformation
-- A show points method that takes in a joint and returns a matrix containing the points of the reflecting plane."""
+- A show points method that takes in a joint and returns a matrix containing the points of the reflecting plane.
+- Could I make a way to export the tube as an stl or obj file for 3d printing?
+- What about printing a cutout model for the zipper tube?
+
+"""
 
 class Tube:
 
@@ -31,6 +35,8 @@ class Tube:
             Height in the z-direction for the zipper tube
         alpha : float, optional (default=90)
             Angle in degrees between x-axis and the side length of the zipper tube
+        gamma : float, optional (default=90)
+            Angle in degrees between the 
         
         """
 
@@ -69,7 +75,9 @@ class Tube:
         l : float
             Length of the defined zipper tube segment.
         theta : float
-            Angle in degrees from the bottom of the zipper tube to the reflecting plane.
+            Represents a rotation about the x-axis for the reflecting plane.
+        gamma : float
+            Represents a rotation about the z-axis for the reflecting plane.
         """
         theta_rad = np.deg2rad(theta)
         gamma_rad = np.deg2rad(gamma)
@@ -99,20 +107,13 @@ class Tube:
             for item in self.transformations:
                 total_trans = total_trans@item
 
-            new_box = self.boxes[1]@total_trans.T
+            new_box = total_trans@self.boxes[1]
             self.boxes.append(new_box)
 
         self.num_sections += 1
         print(f"Joint added with the following parameters: l:{l}, theta:{theta}")
         self.total_length = self.total_length + l*np.sin(theta_rad)
-        return
-
-    def _trans2D(self, l, theta):
-        
-        return np.array([[1, 0, 0, 0],
-                         [0, -cos(2*arctan(sin(self.alpha)*tan(theta))), -sin(2*arctan(sin(self.alpha)*tan(theta))), l],
-                         [0, sin(2*arctan(sin(self.alpha)*tan(theta))), -cos(2*arctan(sin(self.alpha)*tan(theta))), 0],
-                         [0, 0, 0, 1]])
+        return        
     
     def _trans3D(self, l, theta, gamma):
         
@@ -127,7 +128,7 @@ class Tube:
         q_f = sin(self.alpha) * cos(gamma)
         r_f = sin(self.alpha) * self.cot(gamma)
         T_individual = np.array([[1/d_f*(((sin(self.alpha)/b_f)**2 + (u_f/c_f)**2)/a_f - r_f*q_f/b_f**2 + u_f**2*self.cot(gamma)*cos(gamma)/c_f**2), 1/m_f*(cos(gamma)/a_f + r_f*sin(self.alpha)/b_f**2 - u_f**2*self.cot(gamma)/c_f**2), -2*u_f*r_f/(b_f*c_f*g_f), 0],
-                                [-1/d_f*(self.cot(gamma)*((sin(self.alpha)/b_f)**2 - (u_f/c_f)**2)/a_f + q_f*sin(self.alpha)/b_f**2 + u_f**2*cos(gamma)/c_f**2), 1/m_f*(sin(self.alpha)**2/b_f**2 - self.cot(gamma)*cos(gamma)/a_f - u_f**2/c_f**2), -2*u_f*sin(self.alpha)/(b_f*c_f*g_f), l],
+                                [-1/d_f*(self.cot(gamma)*((sin(self.alpha)/b_f)**2 + (u_f/c_f)**2)/a_f + q_f*sin(self.alpha)/b_f**2 - u_f**2*cos(gamma)/c_f**2), 1/m_f*(sin(self.alpha)**2/b_f**2 - self.cot(gamma)*cos(gamma)/a_f - u_f**2/c_f**2), -2*u_f*sin(self.alpha)/(b_f*c_f*g_f), l],
                                 [-u_f*q_f/d_f*(a_f**2/c_f**2 + 1/b_f**2), u_f*sin(self.alpha)/m_f*(1/b_f**2 + a_f**2/c_f**2), 1/(b_f*c_f*g_f)*(-u_f**2 + a_f**2*sin(self.alpha)**2), 0],
                                 [0, 0, 0, 1]])
         return T_individual
@@ -197,6 +198,17 @@ class Tube:
 
         else:
             raise ValueError("rep_method must be either 'p' or 't'.")
+        
+    def print_points(self):
+        count = 0
+        for item in self.boxes:
+            print(f"Segment {count}:")
+            print("Point 1:", item[0][:3])
+            print("Point 2:", item[1][:3])
+            print("Point 3:", item[2][:3])
+            print("Point 4:", item[3][:3])
+            print("\n")
+            count += 1
         
 
         plt.show()
