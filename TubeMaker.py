@@ -299,7 +299,7 @@ class Tube:
             raise ValueError("rep_method must be either 'p' or 't'.")
         
 
-    def create_prototype(self, model_thickness, scale):
+    def create_prototypes(self, model_thickness, scale):
         """
         A function that outputs stl's of each of the panels for the individual segments. 
         
@@ -355,6 +355,148 @@ class Tube:
                     filename = f"panel_s{i}_f{j}.step"
                     self._write_step_file(filename, verts, faces)
 
+        return
+
+    def export_panels_dxf(self, filename_prefix="panel", scale=1.0,
+                           layer_name="0", single_file=False):
+        """
+        Export panels to DXF.
+
+        By default each quadrilateral face between successive boxes is written
+        to its own DXF file named ``{prefix}_s<i>_f<j>.dxf``.  If
+        ``single_file`` is True, all panels are written to a single
+        multi‑entity DXF named ``{prefix}.dxf`` instead.
+
+        The geometric procedure is the same as before: compute the face normal,
+        form a local (u,v) basis, project the four corner points and then write
+        an R12 LWPOLYLINE.  The output now contains a minimal LAYER table and
+        each polyline is assigned to the specified ``layer_name`` which helps
+        tools such as Inkscape import correctly.
+
+        Parameters
+        ----------
+        filename_prefix : str, optional
+            Base name used for the output file(s).  When ``single_file`` is
+            False this string is extended with section/face suffixes.
+        scale : float, optional
+            Scale factor applied to the coordinates.
+        layer_name : str, optional
+            DXF layer on which the polylines will be placed (default ``"0"``).
+        single_file : bool, optional
+            Write everything to a single DXF rather than separate files.
+        """
+        if self.num_sections <= 1:
+            return
+
+        panels = []  # list of (verts2d, layer)
+        for i in range(len(self.boxes) - 1):
+            b1 = self.boxes[i]
+            b2 = self.boxes[i + 1]
+
+            quads = [
+                [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],
+                [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],
+                [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],
+                [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],
+            ]
+
+            for j, quad in enumerate(quads):
+                p0 = np.array(quad[0], dtype=float).reshape(3,)
+                p1 = np.array(quad[1], dtype=float).reshape(3,)
+                p2 = np.array(quad[2], dtype=float).reshape(3,)
+
+                v1 = p1 - p0
+                v2 = p2 - p1
+                normal = np.cross(v1, v2)
+                norm_len = np.linalg.norm(normal)
+                if norm_len == 0:
+                    continue
+                normal = normal / norm_len
+
+                if abs(normal[0]) < 0.9:
+                    ref = np.array([1.0, 0.0, 0.0])
+                else:
+                    ref = np.array([0.0, 1.0, 0.0])
+                u = np.cross(ref, normal)
+                u /= np.linalg.norm(u)
+                v = np.cross(normal, u)
+
+                verts2d = []
+                for vv in quad:
+                    p = np.array(vv, dtype=float).reshape(3,)
+                    x = np.dot(p, u) * scale
+                    y = np.dot(p, v) * scale
+                    verts2d.append((x, y))
+
+                panels.append((verts2d, layer_name))
+
+                if not single_file:
+                    filename = f"{filename_prefix}_s{i}_f{j}.dxf"
+                    self._write_dxf_file(filename, verts2d, layer_name)
+
+        if single_file and panels:
+            filename = f"{filename_prefix}.dxf"
+            self._write_dxf_file(filename, [v for v, _ in panels], layer_name)
+
+        return
+
+    def _write_dxf_file(self, filename, verts2d, layer_name="0"):
+        """
+        Write a minimal ASCII DXF (R12) containing one or more closed polylines.
+
+        Parameters
+        ----------
+        filename : str
+            Output path for the DXF file.
+        verts2d : list of (float, float) or list of lists
+            If a single polyline is desired, provide a list of (x,y) pairs.  If
+            multiple polylines are required (single‑file export) pass a list of
+            such lists.
+        layer_name : str, optional
+            Name of the layer to assign to every polyline (default ``"0"``).
+        """
+        # normalize input to list of polylines
+        if verts2d and not isinstance(verts2d[0][0], (list, tuple)):
+            polylines = [verts2d]
+        else:
+            polylines = verts2d
+
+        lines = []
+        # header
+        lines.extend(["0", "SECTION", "2", "HEADER", "0", "ENDSEC"])
+
+        # minimal layer table
+        lines.extend([
+            "0", "SECTION", "2", "TABLES",
+            "0", "TABLE", "2", "LAYER",
+            "0", "LAYER", "2", layer_name,
+            "70", "0",       # flags
+            "62", "7",       # color (white)
+            "6", "CONTINUOUS",  # line type
+            "0", "ENDTAB",
+            "0", "ENDSEC",
+        ])
+
+        # entities
+        lines.extend(["0", "SECTION", "2", "ENTITIES"])
+        for poly in polylines:
+            lines.append("0")
+            lines.append("LWPOLYLINE")
+            lines.append("8")
+            lines.append(layer_name)
+            lines.append("90")
+            lines.append(str(len(poly)))
+            lines.append("70")
+            lines.append("1")            # closed
+            for x, y in poly:
+                lines.append("10")
+                lines.append(f"{x:.6f}")
+                lines.append("20")
+                lines.append(f"{y:.6f}")
+        lines.extend(["0", "ENDSEC", "0", "EOF"])
+
+        with open(filename, "w") as fh:
+            fh.write("\n".join(lines))
         return
 
 
@@ -619,33 +761,100 @@ class Tube:
         
         return
 
+    def get_Polys(self, axis, alpha):
+
+            boxes = []
+            base = np.array([self.corner_frame_f(0, 1, 1, alpha).flatten(),
+                                self.corner_frame_f(0, 2, 1, alpha).flatten(),
+                                self.corner_frame_f(0, 3, 1, alpha).flatten(),
+                                self.corner_frame_f(0, 4, 1, alpha).flatten()])
+
+            second_set = np.array([self.corner_frame_f(1, 1, 1, alpha).flatten(),
+                                    self.corner_frame_f(1, 2, 1, alpha).flatten(),
+                                    self.corner_frame_f(1, 3, 1, alpha).flatten(),
+                                    self.corner_frame_f(1, 4, 1, alpha).flatten()])
+
+            boxes.append(base)
+            boxes.append(second_set)
+            # keep a template of the most-recent box in case other strategies use it
+            self.template = second_set.copy()
+
+            for j in range(2, self.num_sections):
+                new_box = np.array([self.corner_frame_f(j, 1, 1, alpha).flatten(),
+                                    self.corner_frame_f(j, 2, 1, alpha).flatten(),
+                                    self.corner_frame_f(j, 3, 1, alpha).flatten(),
+                                    self.corner_frame_f(j, 4, 1, alpha).flatten()])
+                boxes.append(new_box)
+
+            # fig = plt.figure()
+            # ax = plt.axes(projection="3d")
+
+
+            color_counter = 0
+            # Plotting the boxes
+            if self.num_sections > 1:
+                for i in range(len(boxes)-1):
+                    if color_counter > 2:
+                        color_counter = 0
+                    b1 = boxes[i]
+                    b2 = boxes[i+1]
+
+                    # build 6 faces
+                    faces = [
+                        [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],  # side 1
+                        [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],  # side 2
+                        [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],  # side 3
+                        [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],  # side 4 
+                        [b1[0][:3], b1[1][:3], b1[2][:3], b1[3][:3]],  # bottom
+                        [b2[0][:3], b2[1][:3], b2[2][:3], b2[3][:3]]   # top
+                    ]
+                    axis.add_collection3d(Poly3DCollection(faces, alpha=0.8, facecolor = self.color_list[color_counter], edgecolor = "black"))
+                    color_counter += 1
+
+            return
+
     def show_animation(self):
         """
         A function that shows an animation of the tube folding up.
         """
 
+        import matplotlib.pyplot as plt
+        from matplotlib.animation import FuncAnimation
 
-        base = np.array([self.corner_frame_f(0, 1, 1).flatten(),
-                             self.corner_frame_f(0, 2, 1).flatten(),
-                             self.corner_frame_f(0, 3, 1).flatten(),
-                             self.corner_frame_f(0, 4, 1).flatten()])
+        fig = plt.figure()
+        ax = plt.axes(projection="3d")
 
-        second_set = np.array([self.corner_frame_f(1, 1, 1).flatten(),
-                                   self.corner_frame_f(1, 2, 1).flatten(),
-                                   self.corner_frame_f(1, 3, 1).flatten(),
-                                   self.corner_frame_f(1, 4, 1).flatten()])
 
-        self.boxes.append(base)
-        self.boxes.append(second_set)
-        # keep a template of the most-recent box in case other strategies use it
-        self.template = second_set.copy()
+        def animate(i):
+            ax.clear()
+            ax.set_xlim([-4*self.width, 4*self.width])
+            ax.set_ylim([-4*self.width, 4*self.width])
+            ax.set_zlim([-4*self.height, 4*self.height])
 
-          
-        new_box = np.array([self.corner_frame_f(self.num_sections, 1, 1).flatten(),
-                            self.corner_frame_f(self.num_sections, 2, 1).flatten(),
-                            self.corner_frame_f(self.num_sections, 3, 1).flatten(),
-                            self.corner_frame_f(self.num_sections, 4, 1).flatten()])
-        self.boxes.append(new_box)
+            ax.plot([0, 2], [0, 0], [0, 0], color='r')
+            ax.plot([0, 0], [0, 2], [0, 0], color='g')
+            ax.plot([0, 0], [0, 0], [0, 2], color='b')
+
+            ax.set_xlabel("X")
+            ax.set_ylabel("Y")
+            ax.set_zlabel("Z")
+
+            
+            if i < 180:
+                alpha = i / 2
+            else:
+                alpha = (360 - i) / 2
+
+            self.get_Polys(axis=ax, alpha = np.radians(alpha))
+
+
+        anim = FuncAnimation(fig, animate, frames=360, interval=50)
+
+        plt.show()
+        # anim.save('tube_animation.gif')
+
+
+
 
 
         return
