@@ -89,7 +89,7 @@ tube.export_panels_dxf(filename_prefix="combined", scale=1.0,
 
 tube.create_prototype(model_thickness = 1, scale = 1)
 ```
-![Demo](assets/STEP.png)
+<img src="assets/STEP.png" alt="Demo" width="400">
 
 ### Inspecting Coordinates
 
