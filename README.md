@@ -69,6 +69,8 @@ Display a folding animation:
 tube.show_animation(save=True)
 ```
 
+![Demo](assets/Zipper_Tube_Gif.gif)
+
 ### Exporting Panels
 
 Export panel outlines to DXF files for CAD:
