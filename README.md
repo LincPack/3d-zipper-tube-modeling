@@ -60,6 +60,8 @@ tube.visualize()
 tube.visualize(rep_method='t')
 ```
 
+![Demo](assets/Static.png)
+
 ### Animation
 
 Display a folding animation:
@@ -69,20 +71,25 @@ Display a folding animation:
 tube.show_animation(save=True)
 ```
 
-![Demo](assets/image24.gif)
+![Demo](assets/GIF.gif)
 
 ### Exporting Panels
 
-Export panel outlines to DXF files for CAD:
+Export panel outlines to DXF files or STEP file for CAD:
 
 ```python
-# Export each panel to separate files
+# Export each panel to separate DXF files
 tube.export_panels_dxf(filename_prefix="mypanels", scale=1.0)
 
 # Export all panels to one file with custom layer
 tube.export_panels_dxf(filename_prefix="combined", scale=1.0,
                         layer_name="panels", single_file=True)
+
+# Export all panels to seperate STEP files
+
+tube.create_prototype(model_thickness = 1, scale = 1)
 ```
+![Demo](assets/STEP.png)
 
 ### Inspecting Coordinates
 
