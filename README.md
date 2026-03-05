@@ -98,17 +98,17 @@ Create a new zipper tube model.
 
 - **width**: Length of parallelogram sides along x-axis
 - **height**: Height along z-axis  
-- **alpha**: Initial plane angle in degrees (default 90)
-- **theta**: Initial tilt angle in degrees (default 90)
-- **gamma**: Initial twist angle in degrees (default 90)
+- **alpha**: Deployment angle degrees (default 90)
+- **theta**: Initial rotation about x in degrees (default 90)
+- **gamma**: Initial rotation about z in degrees (default 90)
 
 ### add_joint(l, theta, gamma)
 
 Add a new segment to the tube.
 
 - **l**: Length of the segment
-- **theta**: Tilt angle in degrees
-- **gamma**: Twist angle in degrees
+- **theta**: X-axis rotation angle in degrees
+- **gamma**: Z-axis rotation angle in degrees
 
 ### visualize(rep_method='p')
 
