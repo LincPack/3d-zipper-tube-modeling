@@ -2,6 +2,12 @@
 
 This repository provides a way to model any zipper tube, provided the user can supply angles and lengths for the tube.
 
+A Python package (`zipper-tube`) wraps the core `Tube` class; the API is exposed via
+```python
+from zipper_tube import Tube
+```
+
+
 ## Virtual Enviroment Information
 
 ### Introduction
@@ -10,37 +16,121 @@ Creating a virtual enviroment in python is a great way to seperate different cod
 It is important to note that this step is not necessary. It just provides a great way to organize things on your computer.
 
 ### Setup
-- You can either clone the repository first, or create a virtual enviroment. I would recommend creating cloning the repository first, and then you can create a virtual enviroment in the same folder by going onto VS Code in the folder with the repository, and using the ctrl+shift+p to bring up the command lines. 
-- You can then search for and select create a virtual enviroment. I've been using .venv types mostly. 
-- After your enviroment is created, you need to download the files listed in the requirements.txt file. Head to the terminal, locate the same folder, and type **source venv/bin/activate** for linux/mac, or **.venv\Scripts\activate.bat** for windows. This command sources your virtual enviroment, after which you can use **pip install -r requirements.txt** to download all the files you need to your computer
+- Clone the repository and optionally create a virtual environment in the project folder (e.g. `python -m venv .venv`).
+- Activate the environment (`source .venv/bin/activate` on macOS/Linux or `.venv\Scripts\activate.bat` on Windows).
+- Install the package and development dependencies:
+  ```sh
+  pip install -e .[dev]
+  ```
+  (or `pip install .` for a normal install; `requirements.txt` is kept for compatibility.)
 
-## Exporting panels
 
-The `Tube` class now includes an `export_panels_dxf` method that writes the
-outline of each zipper‑tube panel to a simple DXF (R12) file.  No additional
-packages are required – the function emits plain ASCII DXF which can be
-opened by any CAD program.
+## Usage
 
-Example use::
+### Creating a Tube
 
 ```python
-from TubeMaker import Tube
+from zipper_tube import Tube
 
-# build some geometry
-tube = Tube(10,5)
-tube.add_joint(20,90,90)
-# ... add more segments ...
+# Create a tube with width 10, height 5, default angles
+tube = Tube(10, 5)
+```
 
-# produce separate DXF files, all geometry on layer '0'
+### Adding Joints
+
+Add segments to the tube by specifying length and angles (in degrees):
+
+```python
+# Add a joint: length 20, theta 90°, gamma 90°
+tube.add_joint(20, 90, 90)
+
+# Add another joint
+tube.add_joint(15, 45, 60)
+```
+
+### Visualization
+
+Visualize the tube as reflecting planes or physical tube:
+
+```python
+# Show reflecting planes (default)
+tube.visualize()
+
+# Show physical tube
+tube.visualize(rep_method='t')
+```
+
+### Animation
+
+Display a folding animation:
+
+```python
+# Show animation and save as GIF
+tube.show_animation(save=True)
+```
+
+### Exporting Panels
+
+Export panel outlines to DXF files for CAD:
+
+```python
+# Export each panel to separate files
 tube.export_panels_dxf(filename_prefix="mypanels", scale=1.0)
 
-# write everything into a single DXF and give it a custom layer
+# Export all panels to one file with custom layer
 tube.export_panels_dxf(filename_prefix="combined", scale=1.0,
                         layer_name="panels", single_file=True)
 ```
 
-Notes:
-* ``layer_name`` controls the DXF layer; setting it to ``"0"`` ensures
-  compatibility with Inkscape and most CAD tools.
-* ``single_file`` makes it convenient to share one drawing containing all
-  panels instead of a collection of separate files.
+### Inspecting Coordinates
+
+Print corner coordinates for debugging:
+
+```python
+tube.print_points()
+```
+
+## API Reference
+
+### Tube(width, height, alpha=90, theta=90, gamma=90)
+
+Create a new zipper tube model.
+
+- **width**: Length of parallelogram sides along x-axis
+- **height**: Height along z-axis  
+- **alpha**: Initial plane angle in degrees (default 90)
+- **theta**: Initial tilt angle in degrees (default 90)
+- **gamma**: Initial twist angle in degrees (default 90)
+
+### add_joint(l, theta, gamma)
+
+Add a new segment to the tube.
+
+- **l**: Length of the segment
+- **theta**: Tilt angle in degrees
+- **gamma**: Twist angle in degrees
+
+### visualize(rep_method='p')
+
+Display a 3D plot of the tube.
+
+- **rep_method**: 'p' for reflecting planes, 't' for physical tube
+
+### show_animation(save=True)
+
+Show a rotating animation of the tube folding.
+
+- **save**: Whether to save animation as 'tube_animation.gif'
+
+### export_panels_dxf(filename_prefix="panel", scale=1.0, layer_name="0", single_file=False)
+
+Export panel outlines to DXF files.
+
+- **filename_prefix**: Base name for output files
+- **scale**: Scaling factor for coordinates
+- **layer_name**: DXF layer name
+- **single_file**: If True, combine all panels into one file
+
+### print_points()
+
+Print corner coordinates of all segments to console.
