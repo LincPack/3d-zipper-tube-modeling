@@ -69,7 +69,7 @@ Display a folding animation:
 tube.show_animation(save=True)
 ```
 
-![Demo](assets/Zipper_Tube_Gif.gif)
+![Demo](assets/image24.gif)
 
 ### Exporting Panels
 
