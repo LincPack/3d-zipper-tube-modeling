@@ -98,7 +98,7 @@ class Tube:
 
         gamma : float, optional (default=90)
 
-            Angle in degrees between the 
+            Angle in degrees between the y-axis and the side length of the zipper tube
 
         
         """
@@ -136,6 +136,10 @@ class Tube:
         self.theta_list.append(theta_rad)
 
         self.gamma_list.append(gamma_rad)
+
+        self.t_main = []
+
+        self.t_off = []
 
         # self.length_list.append(0)
 
@@ -358,7 +362,6 @@ class Tube:
 
         return T_combined
 
-
     # This function returns the corner coordinate of segment s, corner type n, in frame f:
 
     # Note that this function does not currently work when (s < f), except for when (s = 0 and f = 1). This could probably be done, but it would take a lot of work, and probably wouldn't be very useful for design anyway.
@@ -579,6 +582,17 @@ class Tube:
 
             # Ensure the figure is shown when visualize() is called from scripts
 
+            # R * np.cos(t), R * np.sin(t), t
+
+            z = np.linspace(0.0, np.pi*6, 100)
+            x = 2*np.cos(z)
+            y = 2*np.sin(z)
+
+            z1 = np.linspace(0.0-1.0, np.pi*6-1.0, 100)
+            
+            ax.plot3D(x, y, z, color = 'orange', label = 'Target Curve')
+            ax.plot3D(x, y, z1, color = 'blue', linestyle='dashed', label = 'Offset Curve')
+            ax.legend(loc = 'upper right')
             plt.show()
 
 
@@ -1656,7 +1670,6 @@ class Tube:
 
             anim.save('tube_animation.gif')
 
-
         return
 
     
@@ -1721,3 +1734,226 @@ class Tube:
             count += 1
 
         return
+
+
+    def helix_zipper_params(self, R, n, T, alpha_deg):
+        """
+        Compute per-mirror design parameters for a helical zipper tube.
+
+        Parameters
+        ----------
+        R         : float  -- helix radius
+        n         : int    -- number of main-curve intervals (>= 2)
+        T         : float  -- upper limit of parameter t
+        alpha_deg : float  -- target deployment angle (degrees)
+        w         : float  -- cross-section width
+        h         : float  -- cross-section height
+
+        Returns
+        -------
+        gammas : list of float  -- gamma_i values (degrees), length 2n-1
+        thetas : list of float  -- theta_i values (degrees), length 2n-1
+        Ls     : list of float  -- segment lengths L_i,       length 2n-1
+        """
+        if n < 2:
+            raise ValueError("n must be at least 2.")
+
+        # ── Stage 1: Build polygonal path ──────────────────────────────────────
+        self.t_main = np.linspace(0.0, T, n + 1)
+        t_main = self.t_main
+        self.t_off = 0.5 * (t_main[:-1] + t_main[1:])   # n midpoint values
+        t_off  = self.t_off   # n midpoint values
+
+        def main_pt(t):
+            return np.array([R * np.cos(t), R * np.sin(t), t])
+
+        def offset_pt(t):
+            return np.array([R * np.cos(t), R * np.sin(t), t - 1.0])
+        
+
+        # def main_pt(t):
+        #     return np.array([R * np.cos(t), R * np.sin(t), t])
+
+        # def offset_pt(t):
+        #     return np.array([R * np.cos(t)*1.5, R * np.sin(t) * 1.5, t])
+
+        # Interleave: x_0, o_0, x_1, o_1, ..., o_{n-1}, x_n
+
+        print(offset_pt(t_off[-1]))
+        verts = []
+        for i in range(n):
+            verts.append(main_pt(t_main[i]))
+            verts.append(offset_pt(t_off[i]))
+        verts.append(main_pt(t_main[n]))
+        verts = np.array(verts)          # shape (2n+1, 3)
+        n_seg = len(verts) - 1           # = 2n  (number of path segments)
+
+        # ── Stage 2: Segment directions ────────────────────────────────────────
+        U = np.array(
+            [(verts[k + 1] - verts[k]) / np.linalg.norm(verts[k + 1] - verts[k])
+            for k in range(n_seg)]
+        )                                # U[k] = unit direction of segment k
+
+        # ── Stage 2: Mirror normals  n_k = U[k-1] + U[k]  (at vertex k) ───────
+        def mirror_normal(k):
+            return U[k - 1] + U[k]
+
+        # ── Reflection helper ──────────────────────────────────────────────────
+        def reflect(u, n_vec):
+            n_hat = n_vec / np.linalg.norm(n_vec)
+            return u - 2.0 * np.dot(u, n_hat) * n_hat
+
+        # ── Stage 3: Initial cross-section corners (rectangular at alpha) ──────
+        #   Local frame at start: y_hat along first segment direction,
+        #   x_hat and z_hat perpendicular to it.
+        y_hat = U[0]
+        ref   = np.array([0., 0., 1.]) if abs(y_hat[2]) < 0.9 \
+                else np.array([1., 0., 0.])
+        x_hat = np.cross(y_hat, ref);  x_hat /= np.linalg.norm(x_hat)
+        z_hat = np.cross(x_hat, y_hat);  z_hat /= np.linalg.norm(z_hat)
+
+        c01 = verts[0].copy()
+        c02 = c01 + self.width * x_hat
+        c03 = c01 + self.width * x_hat + self.height * z_hat
+        c04 = c01 +             self.height * z_hat
+        corners_0 = np.array([c01, c02, c03, c04])
+
+        # ── Stage 3: Propagate each corner ray through all mirrors ─────────────
+        def propagate(c0):
+            pts = [c0.copy()]
+            c   = c0.copy()
+            u   = U[0].copy()
+            for k in range(1, n_seg):
+                n_k   = mirror_normal(k)
+                denom = np.dot(u, n_k)
+                if abs(denom) < 1e-12:
+                    raise ValueError(
+                        f"Corner ray is parallel to mirror at vertex {k}. "
+                        "Try a finer sampling (larger n)."
+                    )
+                t_int = np.dot(verts[k] - c, n_k) / denom
+                c     = c + t_int * u
+                pts.append(c.copy())
+                u = reflect(u, n_k)
+            return np.array(pts)          # shape (2n, 3)
+
+        all_pts = [propagate(c0) for c0 in corners_0]  # 4 lists, each (2n, 3)
+
+        # ── Stage 4: Extract gamma_i, theta_i, L_i at each mirror ─────────────
+        gammas, thetas, Ls = [], [], []
+        for k in range(1, n_seg):
+            u_in = U[k - 1]                          # incoming ray direction
+            c_k1 = all_pts[0][k]
+            c_k2 = all_pts[1][k]
+            c_k4 = all_pts[3][k]
+            e2   = c_k2 - c_k1;  e2 /= np.linalg.norm(e2)
+            e4   = c_k4 - c_k1;  e4 /= np.linalg.norm(e4)
+            gamma_k = np.degrees(np.arccos(np.clip(np.dot(-u_in, e2), -1.0, 1.0)))
+            theta_k = np.degrees(np.arccos(np.clip(np.dot(-u_in, e4), -1.0, 1.0)))
+            L_k     = np.linalg.norm(all_pts[0][k] - all_pts[0][k - 1])
+            gammas.append(gamma_k)
+            thetas.append(theta_k)
+            Ls.append(L_k)
+
+        return gammas, thetas, Ls
+
+    def print_params(self, gammas, thetas, Ls):
+        n_params = len(gammas)
+        print(f"\n{'i':>4}  {'gamma_i (deg)':>14}  {'theta_i (deg)':>14}  {'L_i':>10}")
+        print("-" * 48)
+        for i, (g, th, L) in enumerate(zip(gammas, thetas, Ls), 1):
+            print(f"{i:>4}  {g:>14.4f}  {th:>14.4f}  {L:>10.6f}")
+        print(f"\nNumber of mirrors (parameter sets): {n_params}")
+
+    def get_tube_from_curve(self, num_segments):
+        z = np.linspace(0.0, np.pi * 2, num_segments+1)
+        x = 2.0*np.cos(z)
+        y = 2.0*np.sin(z)
+
+
+    def get_tube_from_params(self, R, n, T, alpha_deg):
+        gammas, thetas, Ls = self.helix_zipper_params(R, n, T, alpha_deg)
+
+        for i in range(len(gammas)):
+            self.add_joint(Ls[i], thetas[i], gammas[i])
+        self.print_params(gammas, thetas, Ls)
+
+        self.align_to_world(R)
+
+
+    def align_to_world(self, R):
+        x0 = np.array([R*np.cos(self.t_main[0]), R*np.sin(self.t_main[0]), self.t_main[0]]) #This extracts the first point from the main curve.
+        x1 = np.array([R*np.cos(self.t_main[1]/2), R*np.sin(self.t_main[1]/2), self.t_main[1]/2 - 1.0]) #This extracts the first point from the offset curve.
+        print(f"Aligning tube to world coordinates: x0 = {x0}, x1 = {x1}")
+
+        # c0 = np.mean(self.boxes[0][:, :3], axis=0)
+        # c1 = np.mean(self.boxes[1][:, :3], axis=0)
+        c0 = self.boxes[0][0][:3] # This extracts the first point from the first box, which is the initial corner of the tube.
+        c1 = self.boxes[1][0][:3] # This extracts the first point from the second box.
+        current_y = c1 - c0 # direction of the first segment in the tube's local frame
+        current_y /= np.linalg.norm(current_y)
+
+        u1 = x1 - x0 
+        u1 /= np.linalg.norm(u1) # Desired direction of the first segment in world coordinates
+
+        R = self._rotation_matrix_from_vectors(current_y, u1)
+
+        self.boxes = [
+            ((R @ box[:, :3].T).T + x0)
+            for box in self.boxes
+        ]
+
+    def _rotation_matrix_from_vectors(self, a, b):
+        a = np.asarray(a, dtype=float)
+        b = np.asarray(b, dtype=float)
+
+        a /= np.linalg.norm(a)
+        b /= np.linalg.norm(b)
+
+        v = np.cross(a, b)
+        c = np.dot(a, b)
+
+        if np.allclose(v, 0.0):
+            if c > 0:
+                return np.eye(3)
+            # 180-degree rotation around any perpendicular axis
+            perp = np.array([1.0, 0.0, 0.0])
+            if abs(a[0]) > 0.9:
+                perp = np.array([0.0, 1.0, 0.0])
+            v = np.cross(a, perp)
+            v /= np.linalg.norm(v)
+            vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+            return np.eye(3) + 2 * vx @ vx
+
+        vx = np.array([
+            [0.0, -v[2], v[1]],
+            [v[2], 0.0, -v[0]],
+            [-v[1], v[0], 0.0]
+        ])
+
+        return np.eye(3) + vx + vx @ vx * (1.0 / (1.0 + c))
+
+
+# ── Demo ───────────────────────────────────────────────────────────────────
+
+# if __name__ == "__main__":
+#     # Parameters from the paper's worked example
+#     R         = 2.0
+#     n         = 12         # 3 main-curve intervals → 5 mirrors
+#     T         = np.pi*2
+#     alpha_deg = 90.0
+#     w         = 0.1
+#     h         = 0.2
+
+#     print("=" * 60)
+#     print("Helix zipper tube parameter extraction")
+#     print("=" * 60)
+#     print(f"  Curve  : Upsilon(t) = ({R}*cos(t), {R}*sin(t), t),  t in [0, {T:.6f}]")
+#     print(f"  Offset : (R/2*cos(t), R/2*sin(t), t)")
+#     print(f"  n      = {n}  (main-curve intervals)")
+#     print(f"  alpha  = {alpha_deg} deg")
+#     print(f"  w      = {w},  h = {h}")
+#     print(f"  Mirrors: {2*n - 1}")
+
+#     gammas, thetas, Ls = helix_zipper_params(R, n, T, alpha_deg, w, h)
+#     print_params(gammas, thetas, Ls)
