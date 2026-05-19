@@ -1736,7 +1736,7 @@ class Tube:
         return
 
 
-    def helix_zipper_params(self, R, n, T, alpha_deg):
+    def helix_zipper_params(self, R, n, T):
         """
         Compute per-mirror design parameters for a helical zipper tube.
 
@@ -1871,8 +1871,8 @@ class Tube:
         y = 2.0*np.sin(z)
 
 
-    def get_tube_from_params(self, R, n, T, alpha_deg):
-        gammas, thetas, Ls = self.helix_zipper_params(R, n, T, alpha_deg)
+    def get_tube_from_params(self, R, n, T):
+        gammas, thetas, Ls = self.helix_zipper_params(R, n, T)
 
         for i in range(len(gammas)):
             self.add_joint(Ls[i], thetas[i], gammas[i])
