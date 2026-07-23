@@ -4,6 +4,7 @@ from numpy import sin, cos, tan, arctan
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from sympy import pprint
 from datetime import datetime
+import ffmpeg
 
 
 class Tube:
@@ -141,7 +142,20 @@ class Tube:
 
         self.t_off = []
 
+        self.R = 0
+        self.offset_curve = 0
+
         # self.length_list.append(0)
+
+
+    def main_curve_pt(self, R, t):
+        """Return a point on the main helix curve."""
+        return np.array([R * np.cos(t), R * np.sin(t), t])
+
+
+    def offset_curve_pt(self, R, t):
+        """Return a point on the corresponding offset curve."""
+        return np.array([2.0 * R * np.cos(t), 2.0 * R * np.sin(t), t])
 
 
     def csc(self, angle):
@@ -464,7 +478,6 @@ class Tube:
 
         return T_individual
 
-
     def visualize(self, rep_method='p'):
 
         """
@@ -503,11 +516,15 @@ class Tube:
 
         ax = plt.axes(projection="3d")
 
-        ax.set_xlim([-4*self.width, 4*self.width])
+        # ax.set_xlim([-8*self.width, 8*self.width])
 
-        ax.set_ylim([-4*self.width, 4*self.width])
+        # ax.set_ylim([-8*self.width, 8*self.width])
 
-        ax.set_zlim([-4*self.height, 4*self.height])
+        # ax.set_zlim([-8*self.height, 8*self.height])
+
+        ax.set_xlim([-3, 3])
+        ax.set_ylim([-3, 3])
+        ax.set_zlim([-3, 3])
 
 
         ax.plot([0, 2], [0, 0], [0, 0], color='r')
@@ -595,7 +612,7 @@ class Tube:
             
             # ax.plot3D(x, y, z, color = 'orange', label = 'Target Curve')
             # ax.plot3D(x, y, z1, color = 'blue', linestyle='dashed', label = 'Offset Curve')
-            ax.plot3D(x, y, z, color = 'black', linestyle='dashed', label = 'Target Curve')
+            # ax.plot3D(x, y, z, color = 'black', linestyle='dashed', label = 'Target Curve')
 
             ax.zaxis.set_ticklabels([])
             ax.zaxis.set_ticks([])
@@ -604,12 +621,41 @@ class Tube:
             # ax.legend(loc = 'upper right')
             plt.show()
 
+        elif rep_method == 'm':
+            color_counter = 0
+            if self.num_sections > 1:
+
+                for i in range(len(self.boxes)-1):
+                    if color_counter > 2:
+
+                        color_counter = 0
+
+                    b1 = self.boxes[i]
+
+                    b2 = self.boxes[i+1]
+
+                    base = np.array([b1[0][:3], b1[1][:3], b1[2][:3], b1[3][:3]])
+                    top = np.array([b2[0][:3], b2[1][:3], b2[2][:3], b2[3][:3]])
+                
+                    base_m = np.mean(base, axis=0)
+                    top_m = np.mean(top, axis = 0)
+                    ax.plot(
+                        [base_m[0], top_m[0]],
+                        [base_m[1], top_m[1]],
+                        [base_m[2], top_m[2]],
+                        marker='o',
+                        color=self.color_list[color_counter]
+                        )
+                    color_counter += 1
+
+            plt.show()
+
+
 
         else:
 
-            raise ValueError("rep_method must be either 'p' or 't'.")
+            raise ValueError("rep_method must be either 'p', 't', or 'm'.")
 
-        
     def create_prototypes(self, model_thickness, scale):
 
         """Generate STEP files for the individual panel faces of the tube.
@@ -747,7 +793,6 @@ class Tube:
 
 
         return
-
 
     def export_panels_dxf(self, filename_prefix="panel", scale=1.0,
 
@@ -1479,108 +1524,105 @@ class Tube:
         return
 
 
-    def get_Polys(self, axis, alpha, rep_method):
+    def get_Polys(self, axis, alpha, rep_method='t', color_intensity = 0.8):
+        boxes = []
+
+        base = np.array([
+            self.corner_frame_f(0, 1, 1, alpha).flatten(),
+            self.corner_frame_f(0, 2, 1, alpha).flatten(),
+            self.corner_frame_f(0, 3, 1, alpha).flatten(),
+            self.corner_frame_f(0, 4, 1, alpha).flatten()
+        ])
+
+        second_set = np.array([
+            self.corner_frame_f(1, 1, 1, alpha).flatten(),
+            self.corner_frame_f(1, 2, 1, alpha).flatten(),
+            self.corner_frame_f(1, 3, 1, alpha).flatten(),
+            self.corner_frame_f(1, 4, 1, alpha).flatten()
+        ])
+
+        boxes.append(base)
+        boxes.append(second_set)
+
+        for j in range(2, self.num_sections):
+            boxes.append(np.array([
+                self.corner_frame_f(j, 1, 1, alpha).flatten(),
+                self.corner_frame_f(j, 2, 1, alpha).flatten(),
+                self.corner_frame_f(j, 3, 1, alpha).flatten(),
+                self.corner_frame_f(j, 4, 1, alpha).flatten()
+            ]))
+
+        if self.R:
+            boxes = self.transform_boxes_to_world(boxes)
+
+        if rep_method == 'p':
+            for plane in boxes:
+                perfect_plane = np.array([
+                    plane[0][:3], plane[1][:3], plane[2][:3], plane[3][:3]
+                ])
+                axis.add_collection(Poly3DCollection(
+                    [perfect_plane], alpha=0.8, facecolor='cyan', edgecolor='black'
+                ))
+            self.template = boxes[1].copy()
+
+        elif rep_method == 't':
+            color_counter = 0
+            if self.num_sections > 1:
+                for i in range(len(boxes) - 1):
+                    if color_counter > 2:
+                        color_counter = 0
+
+                    b1 = boxes[i]
+                    b2 = boxes[i + 1]
+
+                    faces = [
+                        [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],
+                        [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],
+                        [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],
+                        [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],
+                        [b1[0][:3], b1[1][:3], b1[2][:3], b1[3][:3]],
+                        [b2[0][:3], b2[1][:3], b2[2][:3], b2[3][:3]]
+                    ]
+
+                
+                    axis.add_collection3d(Poly3DCollection(
+                        faces,
+                        alpha=0.8,
+                        facecolor=self.color_list[color_counter],
+                        edgecolor="black"
+                    ))
+                    color_counter += 1
+        elif rep_method == 'm':
+            color_counter = 0
+            if self.num_sections > 1:
+
+                for i in range(len(boxes)-1):
+                    if color_counter > 2:
+                        color_counter = 0
+
+                    b1 = boxes[i]
+                    b2 = boxes[i+1]
+
+                    base = np.array([b1[0][:3], b1[1][:3], b1[2][:3], b1[3][:3]])
+                    top = np.array([b2[0][:3], b2[1][:3], b2[2][:3], b2[3][:3]])
+                
+                    base_m = np.mean(base, axis=0)
+                    top_m = np.mean(top, axis = 0)
+
+                    axis.plot(
+                        [base_m[0], top_m[0]],
+                        [base_m[1], top_m[1]],
+                        [base_m[2], top_m[2]],
+                        marker='o',
+                        color=self.color_list[color_counter],
+                        alpha = color_intensity
+                        )
+                    color_counter += 1
+
+        return
 
 
-            boxes = []
-
-            base = np.array([self.corner_frame_f(0, 1, 1, alpha).flatten(),
-
-                                self.corner_frame_f(0, 2, 1, alpha).flatten(),
-
-                                self.corner_frame_f(0, 3, 1, alpha).flatten(),
-
-                                self.corner_frame_f(0, 4, 1, alpha).flatten()])
-
-
-            second_set = np.array([self.corner_frame_f(1, 1, 1, alpha).flatten(),
-
-                                    self.corner_frame_f(1, 2, 1, alpha).flatten(),
-
-                                    self.corner_frame_f(1, 3, 1, alpha).flatten(),
-
-                                    self.corner_frame_f(1, 4, 1, alpha).flatten()])
-
-
-            boxes.append(base)
-
-            boxes.append(second_set)
-
-            if rep_method == 'p':
-
-                for plane in boxes:
-
-                    perfect_plane = np.array([plane[0][:3], plane[1][:3], plane[2][:3], plane[3][:3]])
-
-                    axis.add_collection(Poly3DCollection([perfect_plane], alpha = 0.8, facecolor = 'cyan', edgecolor = 'black'))
-
-            # keep a template of the most-recent box in case other strategies use it
-
-                self.template = second_set.copy()
-
-            elif rep_method == 't':
-                for j in range(2, self.num_sections):
-
-                    new_box = np.array([self.corner_frame_f(j, 1, 1, alpha).flatten(),
-
-                                        self.corner_frame_f(j, 2, 1, alpha).flatten(),
-
-                                        self.corner_frame_f(j, 3, 1, alpha).flatten(),
-
-                                        self.corner_frame_f(j, 4, 1, alpha).flatten()])
-
-                    boxes.append(new_box)
-
-
-                # fig = plt.figure()
-
-                # ax = plt.axes(projection="3d")
-
-
-                color_counter = 0
-
-                # Plotting the boxes
-
-                if self.num_sections > 1:
-
-                    for i in range(len(boxes)-1):
-
-                        if color_counter > 2:
-
-                            color_counter = 0
-
-                        b1 = boxes[i]
-
-                        b2 = boxes[i+1]
-
-
-                        # build 6 faces
-
-                        faces = [
-
-                            [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],  # side 1
-
-                            [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],  # side 2
-
-                            [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],  # side 3
-
-                            [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],  # side 4 
-
-                            [b1[0][:3], b1[1][:3], b1[2][:3], b1[3][:3]],  # bottom
-
-                            [b2[0][:3], b2[1][:3], b2[2][:3], b2[3][:3]]   # top
-
-                        ]
-
-                        axis.add_collection3d(Poly3DCollection(faces, alpha=0.8, facecolor = self.color_list[color_counter], edgecolor = "black"))
-
-                        color_counter += 1
-
-
-            return
-
-
-    def show_animation(self, save=True):
+    def show_animation(self, save=False, rep_method = 't'):
 
         """Display a rotating animation of the zipper tube folding.
 
@@ -1645,11 +1687,15 @@ class Tube:
 
             ax.clear()
 
-            ax.set_xlim([-4*self.width, 4*self.width])
+            # ax.set_xlim([-4*self.width, 4*self.width])
 
-            ax.set_ylim([-4*self.width, 4*self.width])
+            # ax.set_ylim([-4*self.width, 4*self.width])
 
-            ax.set_zlim([-4*self.height, 4*self.height])
+            # ax.set_zlim([-4*self.height, 4*self.height])
+
+            ax.set_xlim([-3, 3])
+            ax.set_ylim([-3, 3])
+            ax.set_zlim([-3, 3])
 
 
             ax.plot([0, 2], [0, 0], [0, 0], color='r')
@@ -1675,7 +1721,15 @@ class Tube:
                 alpha = (360 - i) / 2
 
 
-            self.get_Polys(axis=ax, alpha = np.radians(alpha))
+            self.get_Polys(axis=ax, alpha = np.radians(alpha), rep_method=rep_method)
+            t = np.linspace(0, 2*np.pi, 100)
+            points = self.main_curve_pt(self.R, t)#TODO make sure this can switch automatically.
+            x = points[0, :]
+            y = points[1, :]
+            z = points[2, :]
+
+    #TODO: Put the real curve here
+            ax.plot(x, y, z, 'b-', linewidth=2, label = "Target Curve")
 
 
         anim = FuncAnimation(fig, animate, frames=360, interval=50)
@@ -1685,11 +1739,193 @@ class Tube:
 
         if save:
 
-            anim.save('tube_animation.gif')
+            anim.save('tube_animation.mp4')
 
         return
 
     
+    def show_path(self, rep_method='m'):
+        fig = plt.figure()
+
+        ax = plt.axes(projection="3d")
+
+        ax.set_xlim([-3, 3])
+        ax.set_ylim([-3, 3])
+        ax.set_zlim([-3, 3])
+
+        ax.plot([0, 2], [0, 0], [0, 0], color='r')
+
+        ax.plot([0, 0], [0, 2], [0, 0], color='g')
+
+        ax.plot([0, 0], [0, 0], [0, 2], color='b')
+
+
+        ax.set_xlabel("X")
+
+        ax.set_ylabel("Y")
+
+        ax.set_zlabel("Z")
+
+        for alpha in range(0, 90, 2):
+            self.get_Polys(axis=ax, alpha=np.radians(alpha), rep_method=rep_method, color_intensity=0.5)
+            t = np.linspace(0, 2*np.pi, 100)
+            points = self.main_curve_pt(self.R, t)#TODO make sure this can switch automatically.
+            x = points[0, :]
+            y = points[1, :]
+            z = points[2, :]
+
+    #TODO: Put the real curve here
+            ax.plot(x, y, z, 'b-', linewidth=2, label = "Target Curve")
+
+        plt.show()
+    
+
+    def _get_end_effector_position(self, alpha_rad):
+        """
+        Calculates the 3D position of the origin of the last segment in frame 1.
+        This represents the end-effector position of the tube.
+
+        Parameters
+        ----------
+        alpha_rad : float
+            The deployment angle in radians.
+
+        Returns
+        -------
+        numpy.ndarray
+            A 3-element array [x, y, z] representing the end-effector position.
+        """
+        if self.num_sections <= 1:
+            # If no joints are added, the end-effector is at the origin of frame 0 (which is frame 1's origin)
+            return np.array([0.0, 0.0, 0.0])
+
+        # The last segment is self.num_sections - 1.
+        # We want the origin (corner type 1) of this last segment, expressed in frame 1.
+        end_point_homogeneous = self.corner_frame_f(self.num_sections - 1, 1, 1, alpha_rad)
+        return end_point_homogeneous[:3].flatten()
+
+
+    def _plot_multiple_paths(self, paths_data):
+        """
+        Visualizes multiple end-effector paths on a single 3D plot.
+
+        Parameters
+        ----------
+        paths_data : list of dict
+            A list where each dictionary contains 'label' (str) and 'path' (np.ndarray)
+            for a specific joint configuration's end-effector trajectory.
+        """
+        fig = plt.figure()
+        ax = plt.axes(projection="3d")
+
+        ax.set_xlim([-3, 3])
+        ax.set_ylim([-3, 3])
+        ax.set_zlim([-3, 3])
+
+        ax.plot([0, 2], [0, 0], [0, 0], color='r', label='X-axis')
+        ax.plot([0, 0], [0, 2], [0, 0], color='g', label='Y-axis')
+        ax.plot([0, 0], [0, 0], [0, 2], color='b', label='Z-axis')
+
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.set_title("Deployment Paths for Different Joint Configurations")
+
+        # Use a colormap for different paths
+        colors = plt.cm.jet(np.linspace(0, 1, len(paths_data)))
+
+        for i, path_info in enumerate(paths_data):
+            path = path_info['path']
+            label = path_info['label']
+            ax.plot(path[:, 0], path[:, 1], path[:, 2], color=colors[i], label=label, linewidth=2)
+            # Optionally, mark start and end points
+            ax.scatter(path[0, 0], path[0, 1], path[0, 2], color=colors[i], marker='o', s=50, alpha=0.7) # Start
+            ax.scatter(path[-1, 0], path[-1, 1], path[-1, 2], color=colors[i], marker='x', s=50, alpha=0.7) # End
+
+        ax.legend(loc='best', fontsize='small')
+        plt.show()
+
+
+    def analyze_joint_behavior(self, l_values, theta_values, gamma_values, alpha_steps=10):
+        """
+        Analyze the bending behavior of a single joint as alpha varies.
+
+        This method iterates through provided ranges of l, theta, and gamma,
+        calculates the resulting bend angles (phi, psi, omega) for a single
+        joint across a range of deployment angles (alpha), and prints a table.
+        It then visualizes the cumulative end-effector path for each combination
+        using three identical joints.
+
+        Parameters
+        ----------
+        l_values : float or list of float or numpy.ndarray
+            Length(s) of the segment(s).
+        theta_values : float or list of float or numpy.ndarray
+            X-axis rotation angle(s) in degrees.
+        gamma_values : float or list of float or numpy.ndarray
+            Z-axis rotation angle(s) in degrees.
+        alpha_steps : int, optional
+            Number of points to sample between 1 and 89 degrees.
+        """
+        # Ensure inputs are iterable
+        if not isinstance(l_values, (list, np.ndarray)):
+            l_values = [l_values]
+        if not isinstance(theta_values, (list, np.ndarray)):
+            theta_values = [theta_values]
+        if not isinstance(gamma_values, (list, np.ndarray)):
+            gamma_values = [gamma_values]
+
+        all_paths_data = []  # List of (label, path_points) for plotting
+        alphas_deg = np.linspace(1, 89, alpha_steps)
+
+        for l in l_values:
+            for theta in theta_values:
+                for gamma in gamma_values:
+                    print(f"\n--- Joint Analysis Table for L={l}, Theta={theta}°, Gamma={gamma}° ---")
+                    print(f"{'Alpha (deg)':>12} | {'Phi (YZ)':>10} | {'Psi (XY)':>10} | {'Omega (XZ)':>10}")
+                    print("-" * 55)
+
+                    theta_rad = np.deg2rad(theta)
+                    gamma_rad = np.deg2rad(gamma)
+                    
+                    current_path_points = []
+
+                    # Create a temporary tube for this specific (l, theta, gamma) combination
+                    temp_tube_for_analysis = Tube(self.width, self.height)
+                    # Add three identical joints to this temporary tube for path visualization
+                    # This allows visualizing the cumulative bending over multiple segments.
+                    for _ in range(3):
+                        temp_tube_for_analysis.add_joint(l, theta, gamma)
+
+                    for a_deg in alphas_deg:
+                        a_rad = np.radians(a_deg)
+                        # Compute the transformation matrix for a *single* joint to get phi, psi, omega
+                        T_single_joint = self._trans3D(l, theta_rad, gamma_rad, a_rad)
+                        
+                        # The 2nd column of the rotation matrix (T[0:3, 1]) is the
+                        # direction vector of the next segment in the current frame.
+                        v_x, v_y, v_z = T_single_joint[0, 1], T_single_joint[1, 1], T_single_joint[2, 1]
+
+                        # Calculate bend angles in the 3 primary projection planes
+                        phi = np.degrees(np.arctan2(v_z, v_y))
+                        psi = np.degrees(np.arctan2(v_x, v_y))
+                        omega = np.degrees(np.arctan2(v_x, v_z))
+
+                        print(f"{a_deg:12.1f} | {phi:10.2f} | {psi:10.2f} | {omega:10.2f}")
+
+                        # Get the end-effector position for the *entire* temporary tube at this alpha
+                        end_pos = temp_tube_for_analysis._get_end_effector_position(a_rad)
+                        current_path_points.append(end_pos)
+                    
+                    all_paths_data.append({
+                        'label': f"L={l}, Th={theta}°, Ga={gamma}°",
+                        'path': np.array(current_path_points)
+                    })
+
+        print("\nDisplaying 3D path visualizations for all combinations...")
+        self._plot_multiple_paths(all_paths_data)
+
+
     def show_segment_midpoint_animation(self, segment_index, save=True, show_geometry=True):
         """Display an animation showing how a specific segment's midpoint changes as the tube unfolds.
 
@@ -1741,6 +1977,13 @@ class Tube:
         num_frames = 360
         midpoints = []
         alphas = []
+
+        use_world_transform = bool(self.R and len(self.t_main) >= 2)
+        if use_world_transform:
+            Rmat, x0 = self.world_alignment_transform()
+        else:
+            Rmat = None
+            x0 = None
         
         for i in range(num_frames):
             if i < 180:
@@ -1757,6 +2000,11 @@ class Tube:
             c3 = self.corner_frame_f(segment_index, 3, 1, alpha_rad).flatten()[:3]
             c4 = self.corner_frame_f(segment_index, 4, 1, alpha_rad).flatten()[:3]
             
+            if Rmat is not None:
+                corners = np.vstack([c1, c2, c3, c4])
+                corners = ((Rmat @ corners.T).T + x0)
+                c1, c2, c3, c4 = corners
+
             # Compute midpoint as average of corners
             midpoint = (c1 + c2 + c3 + c4) / 4.0
             midpoints.append(midpoint)
@@ -1772,13 +2020,16 @@ class Tube:
         y_range = np.ptp(all_points[:, 1])
         z_range = np.ptp(all_points[:, 2])
         
-        padding = 0.2
-        ax.set_xlim([np.min(all_points[:, 0]) - padding * x_range, 
-                     np.max(all_points[:, 0]) + padding * x_range])
-        ax.set_ylim([np.min(all_points[:, 1]) - padding * y_range, 
-                     np.max(all_points[:, 1]) + padding * y_range])
-        ax.set_zlim([np.min(all_points[:, 2]) - padding * z_range, 
-                     np.max(all_points[:, 2]) + padding * z_range])
+        padding = 5
+        # ax.set_xlim([np.min(all_points[:, 0]) - padding * x_range, 
+        #              np.max(all_points[:, 0]) + padding * x_range])
+        # ax.set_ylim([np.min(all_points[:, 1]) - padding * y_range, 
+        #              np.max(all_points[:, 1]) + padding * y_range])
+        # ax.set_zlim([np.min(all_points[:, 2]) - padding * z_range, 
+        #              np.max(all_points[:, 2]) + padding * z_range])
+        ax.set_xlim([-3, 3])
+        ax.set_ylim([-3, 3])
+        ax.set_zlim([-3, 3])
         
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
@@ -1794,6 +2045,7 @@ class Tube:
         ax.plot([0, 0], [0, 2], [0, 0], color='g', linewidth=2)
         ax.plot([0, 0], [0, 0], [0, 2], color='b', linewidth=2)
         
+
         def animate(frame):
             ax.clear()
             
@@ -1805,17 +2057,28 @@ class Tube:
             ax.plot([0, 0], [0, 0], [0, 2], color='b', linewidth=2)
             
             # Reset axis limits
-            ax.set_xlim([np.min(all_points[:, 0]) - padding * x_range, 
-                        np.max(all_points[:, 0]) + padding * x_range])
-            ax.set_ylim([np.min(all_points[:, 1]) - padding * y_range, 
-                        np.max(all_points[:, 1]) + padding * y_range])
-            ax.set_zlim([np.min(all_points[:, 2]) - padding * z_range, 
-                        np.max(all_points[:, 2]) + padding * z_range])
-            
+            # ax.set_xlim([np.min(all_points[:, 0]) - padding * x_range, 
+            #             np.max(all_points[:, 0]) + padding * x_range])
+            # ax.set_ylim([np.min(all_points[:, 1]) - padding * y_range, 
+            #             np.max(all_points[:, 1]) + padding * y_range])
+            # ax.set_zlim([np.min(all_points[:, 2]) - padding * z_range, 
+            #             np.max(all_points[:, 2]) + padding * z_range])
+            ax.set_xlim([-3, 3])
+            ax.set_ylim([-3, 3])
+            ax.set_zlim([-3, 3])
+                
             ax.set_xlabel("X")
             ax.set_ylabel("Y")
             ax.set_zlabel("Z")
             ax.set_title(f"Segment {segment_index} Midpoint Trajectory during Unfolding (Frame {frame})")
+            t = np.linspace(0, 2*np.pi, 100)
+            points = self.main_curve_pt(1.5, t)#TODO make sure this can switch automatically.
+            x = points[0, :]
+            y = points[1, :]
+            x=x-1
+            z = points[2, :]
+
+            ax.plot(x, y, z, 'b-', linewidth=2, label = "Target Curve")
             
             # Draw tube geometry if requested
             if show_geometry:
@@ -1825,6 +2088,8 @@ class Tube:
                     try:
                         b1 = np.array([self.corner_frame_f(segment_index - 1, j, 1, alpha_rad).flatten()[:3] 
                                       for j in range(1, 5)])
+                        if Rmat is not None:
+                            b1 = ((Rmat @ b1.T).T + x0)
                         ax.add_collection(Poly3DCollection([b1], alpha=0.2, facecolor='yellow', 
                                                           edgecolor='black', linewidth=0.5))
                     except:
@@ -1834,6 +2099,8 @@ class Tube:
                     try:
                         b2 = np.array([self.corner_frame_f(segment_index + 1, j, 1, alpha_rad).flatten()[:3] 
                                       for j in range(1, 5)])
+                        if Rmat is not None:
+                            b2 = ((Rmat @ b2.T).T + x0)
                         ax.add_collection(Poly3DCollection([b2], alpha=0.2, facecolor='cyan', 
                                                           edgecolor='black', linewidth=0.5))
                     except:
@@ -1843,6 +2110,8 @@ class Tube:
                 try:
                     segment_box = np.array([self.corner_frame_f(segment_index, j, 1, alpha_rad).flatten()[:3] 
                                           for j in range(1, 5)])
+                    if Rmat is not None:
+                        segment_box = ((Rmat @ segment_box.T).T + x0)
                     ax.add_collection(Poly3DCollection([segment_box], alpha=0.5, facecolor='lightblue', 
                                                       edgecolor='darkblue', linewidth=1.5))
                 except:
@@ -1865,8 +2134,8 @@ class Tube:
         plt.show()
         
         if save:
-            print(f"Saving animation to 'segment_{segment_index}_midpoint_animation.gif'...")
-            anim.save(f'segment_{segment_index}_midpoint_animation.gif')
+            print(f"Saving animation to 'segment_{segment_index}_midpoint_animation.mp4'...")
+            anim.save('segment_midpoint_animation.mp4')
             print("Animation saved successfully!")
         
         return
@@ -1963,38 +2232,17 @@ class Tube:
         self.t_off = 0.5 * (t_main[:-1] + t_main[1:])   # n midpoint values
         t_off  = self.t_off   # n midpoint values
 
-        # def main_pt(t):
-        #     return np.array([R * np.cos(t), R * np.sin(t), 0])
-
-        # def offset_pt(t):
-        #     return np.array([R * np.cos(t), R * np.sin(t), 0])
-
-        # Equation for the curve with z-offset
-        # def main_pt(t):
-        #     return np.array([R * np.cos(t), R * np.sin(t), t])
-
-        # def offset_pt(t):
-        #     return np.array([R * np.cos(t), R * np.sin(t), t - 1.0])
-        
-
-        # Equation for the star necklace curve (a 3D curve with a star-shaped cross-section)
-        def main_pt(t): #TODO: Another place where we need make a better area for the offset curve.
-            return np.array([R * np.cos(t), R * np.sin(t), t])
-
-        def offset_pt(t):
-            return np.array([R * np.cos(t)*2, R * np.sin(t) * 2, t])
-
-        # Interleave: x_0, o_0, x_1, o_1, ..., o_{n-1}, x_n
-
+        # Use shared curve helpers so both path construction and world alignment
+        # observe the same curve definitions.
         verts = []
         if offset_curve:
             for i in range(n):
-                verts.append(main_pt(t_main[i]))
-                verts.append(offset_pt(t_off[i]))
+                verts.append(self.main_curve_pt(R, t_main[i]))
+                verts.append(self.offset_curve_pt(R, t_off[i]))
         else:
             for i in range(n):
-                verts.append(main_pt(t_main[i]))
-        verts.append(main_pt(t_main[n]))
+                verts.append(self.main_curve_pt(R, t_main[i]))
+        verts.append(self.main_curve_pt(R, t_main[n]))
         verts = np.array(verts)
         n_seg = len(verts) - 1         # = 2n  (number of path segments)
 
@@ -2077,6 +2325,9 @@ class Tube:
         print(f"\nNumber of mirrors (parameter sets): {n_params}")
 
     def get_tube_from_params(self, R, n, T, offset_curve=False):
+        self.R = R
+        self.offset_curve = offset_curve
+
         gammas, thetas, Ls = self.helix_zipper_params(R, n, T, offset_curve=offset_curve)
 
         for i in range(len(gammas)):
@@ -2086,30 +2337,47 @@ class Tube:
         self.align_to_world(R, offset_curve=offset_curve)
 
 
-    def align_to_world(self, R, offset_curve=False): #TODO: This needs to be generalized for any kind of offset curve. I should combine this so I don't have to define the equation multiple times throughout the code. 
-        x0 = np.array([R*np.cos(self.t_main[0]), R*np.sin(self.t_main[0]), 0]) #This extracts the first point from the main curve.
-        if offset_curve:
-            x1 = np.array([R*2*np.cos(self.t_main[1]/2), R**2*np.sin(self.t_main[1]/2), self.t_main[1]/2]) #This extracts the first point from the offset curve.
-        else:
-            x1 = np.array([R*np.cos(self.t_main[1]), R*np.sin(self.t_main[1]), 0]) #This extracts the first point from the main curve.
-        print(f"Aligning tube to world coordinates: x0 = {x0}, x1 = {x1}")
+    def world_alignment_transform(self, R=None, offset_curve=None, boxes=None):
+        if R is None:
+            R = self.R
+        if offset_curve is None:
+            offset_curve = self.offset_curve
 
-        # c0 = np.mean(self.boxes[0][:, :3], axis=0)
-        # c1 = np.mean(self.boxes[1][:, :3], axis=0)
-        c0 = self.boxes[0][0][:3] # This extracts the first point from the first box, which is the initial corner of the tube.
-        c1 = self.boxes[1][0][:3] # This extracts the first point from the second box.
-        current_y = c1 - c0 # direction of the first segment in the tube's local frame
+        if R == 0 or len(self.t_main) < 2:
+            raise ValueError(
+                "World alignment requires curve parameters from get_tube_from_params()."
+            )
+
+        x0 = self.main_curve_pt(R, self.t_main[0])
+        x1 = self.offset_curve_pt(R, self.t_off[0]) if offset_curve else self.main_curve_pt(R, self.t_main[1])
+
+        if boxes is None:
+            boxes = self.boxes
+
+        if len(boxes) < 2:
+            raise ValueError("Need at least two boxes to compute world alignment.")
+
+        c0 = boxes[0][0][:3]
+        c1 = boxes[1][0][:3]
+        current_y = c1 - c0
         current_y /= np.linalg.norm(current_y)
 
-        u1 = x1 - x0 
-        u1 /= np.linalg.norm(u1) # Desired direction of the first segment in world coordinates
+        u1 = x1 - x0
+        u1 /= np.linalg.norm(u1)
 
-        R = self._rotation_matrix_from_vectors(current_y, u1)
+        Rmat = self._rotation_matrix_from_vectors(current_y, u1)
+        return Rmat, x0
 
-        self.boxes = [
-            ((R @ box[:, :3].T).T + x0)
-            for box in self.boxes
-        ]
+    def transform_boxes_to_world(self, boxes, R=None, offset_curve=None):
+        Rmat, x0 = self.world_alignment_transform(R, offset_curve, boxes)
+        return [((Rmat @ box[:, :3].T).T + x0) for box in boxes]
+
+    def align_to_world(self, R=None, offset_curve=None, boxes=None):
+        if boxes is None:
+            self.boxes = self.transform_boxes_to_world(self.boxes, R, offset_curve)
+            return self.boxes
+        return self.transform_boxes_to_world(boxes, R, offset_curve)
+
 
     def _rotation_matrix_from_vectors(self, a, b):
         a = np.asarray(a, dtype=float)

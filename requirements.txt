@@ -2,3 +2,4 @@ numpy
 matplotlib
 mpl_toolkits.mplot3d.art3d
 sympy
+ffmpeg
