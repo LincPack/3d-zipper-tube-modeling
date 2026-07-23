@@ -7,7 +7,7 @@ name = "zipper-tube"
 version = "0.1.0"
 description = "Geometry modelling for 3D zipper tubes."
 authors = [
-    {name = "Lincoln Packer", email = "lincolnppacker@gmail.com"}
+    {name = "Lincoln Packer", email = "lincolnppacker@gmail.com"},
     {name = "Peter Cope", email = ""}
 ]
 license = {text = "Apache-2.0"}
