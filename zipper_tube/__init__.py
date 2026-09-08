@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import sin, cos, tan, arctan
@@ -699,10 +700,6 @@ class Tube:
 
         """
 
-        # For each quadrilateral face between consecutive boxes, create a thin solid by
-
-        # extruding the quad along its normal by `model_thickness` and write a STEP file.
-
         if self.num_sections > 1:
 
             for i in range(len(self.boxes)-1):
@@ -768,15 +765,9 @@ class Tube:
 
                     # faces as lists of 1-based vertex indices
 
-                    # bottom (original) face
-
                     faces = [[1,2,3,4],
 
-                             # top (extruded) face (note reversed order to keep normal outward)
-
                              [8,7,6,5],
-
-                             # four side faces
 
                              [1,5,6,2],
 
@@ -791,6 +782,154 @@ class Tube:
 
                     self._write_step_file(filename, verts, faces)
 
+
+        return
+
+    def create_prototypes_stl(self, model_thickness, scale=1.0, binary=True):
+
+        """Generate STL files for the individual panel faces of the tube.
+
+
+        Each quadrilateral face between consecutive boxes is extruded normal to
+
+        the face by ``model_thickness`` and written to a separate STL file.
+
+        Files are named ``panel_s<i>_f<j>.stl``.
+
+        """
+
+        def normalize(v):
+            v = np.asarray(v, dtype=float)
+            norm = np.linalg.norm(v)
+            if norm < 1e-12:
+                return v
+            return v / norm
+
+        if self.num_sections > 1:
+
+            for i in range(len(self.boxes) - 1):
+
+                b1 = self.boxes[i]
+
+                b2 = self.boxes[i+1]
+
+
+                quads = [
+
+                    [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],
+
+                    [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],
+
+                    [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],
+
+                    [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],
+
+                ]
+
+
+                for j, quad in enumerate(quads):
+
+                    quad = [np.array(v, dtype=float).reshape(3,) for v in quad]
+                    p0, p1, p3 = quad[0], quad[1], quad[3]
+
+                    x_axis = normalize(p1 - p0)
+                    if np.linalg.norm(x_axis) < 1e-12:
+                        x_axis = np.array([1.0, 0.0, 0.0])
+
+                    v = p3 - p0
+                    v_proj = v - np.dot(v, x_axis) * x_axis
+                    y_axis = normalize(v_proj)
+                    if np.linalg.norm(y_axis) < 1e-12:
+                        p2 = quad[2]
+                        v = p2 - p0
+                        v_proj = v - np.dot(v, x_axis) * x_axis
+                        y_axis = normalize(v_proj)
+                        if np.linalg.norm(y_axis) < 1e-12:
+                            y_axis = np.array([0.0, 1.0, 0.0])
+
+                    normal = normalize(np.cross(x_axis, y_axis))
+                    if np.linalg.norm(normal) < 1e-12:
+                        normal = np.array([0.0, 0.0, 1.0])
+                    y_axis = normalize(np.cross(normal, x_axis))
+
+                    centroid = np.mean(quad, axis=0)
+                    R = np.column_stack((x_axis, y_axis, normal))
+
+                    local_verts = [(R.T @ (v - centroid)).tolist() for v in quad]
+                    local_verts += [((R.T @ (v - centroid)) + np.array([0.0, 0.0, model_thickness])).tolist() for v in quad]
+
+                    faces = [
+
+                        # bottom cap
+                        [0, 3, 2], [0, 2, 1],
+                        # top cap
+                        [4, 5, 6], [4, 6, 7],
+                        # side walls
+                        [0, 1, 5], [0, 5, 4],
+                        [1, 2, 6], [1, 6, 5],
+                        [2, 3, 7], [2, 7, 6],
+                        [3, 0, 4], [3, 4, 7],
+                    ]
+
+                    if scale != 1.0:
+
+                        local_verts = [(np.array(v) * scale).tolist() for v in local_verts]
+
+                    filename = f"panel_s{i}_f{j}.stl"
+
+                    self._write_stl_file(filename, local_verts, faces, binary=binary)
+
+        return
+
+    def _write_stl_file(self, filename, vertices, faces, binary=False):
+        """Write an STL file for a mesh defined by vertices and triangular faces."""
+        if not os.path.isdir("stls"):
+            os.makedirs("stls", exist_ok=True)
+
+        filepath = os.path.join("stls", filename)
+
+        if binary:
+            with open(filepath, "wb") as fh:
+                header = b"Python STL export" + b" " * (80 - len(b"Python STL export"))
+                fh.write(header)
+                fh.write(len(faces).to_bytes(4, byteorder="little"))
+                for face in faces:
+                    v0 = np.asarray(vertices[face[0]], dtype=float)
+                    v1 = np.asarray(vertices[face[1]], dtype=float)
+                    v2 = np.asarray(vertices[face[2]], dtype=float)
+                    normal = np.cross(v1 - v0, v2 - v0)
+                    norm = np.linalg.norm(normal)
+                    if norm > 0:
+                        normal = normal / norm
+                    else:
+                        normal = np.array([0.0, 0.0, 0.0])
+                    for coord in normal:
+                        fh.write(np.float32(coord).tobytes())
+                    for v in (v0, v1, v2):
+                        for coord in v:
+                            fh.write(np.float32(coord).tobytes())
+                    fh.write((0).to_bytes(2, byteorder="little"))
+        else:
+            with open(filepath, "w") as fh:
+                fh.write(f"solid {os.path.splitext(filename)[0]}\n")
+                for face in faces:
+                    v0 = np.asarray(vertices[face[0]], dtype=float)
+                    v1 = np.asarray(vertices[face[1]], dtype=float)
+                    v2 = np.asarray(vertices[face[2]], dtype=float)
+                    normal = np.cross(v1 - v0, v2 - v0)
+                    norm = np.linalg.norm(normal)
+                    if norm > 0:
+                        normal = normal / norm
+                    else:
+                        normal = np.array([0.0, 0.0, 0.0])
+                    fh.write(f"  facet normal {normal[0]:.6f} {normal[1]:.6f} {normal[2]:.6f}\n")
+                    fh.write("    outer loop\n")
+                    fh.write(f"      vertex {v0[0]:.6f} {v0[1]:.6f} {v0[2]:.6f}\n")
+                    fh.write(f"      vertex {v1[0]:.6f} {v1[1]:.6f} {v1[2]:.6f}\n")
+                    fh.write(f"      vertex {v2[0]:.6f} {v2[1]:.6f} {v2[2]:.6f}\n")
+                    fh.write("    endloop\n")
+                    fh.write("  endfacet\n")
+                fh.write(f"endsolid {os.path.splitext(filename)[0]}\n")
 
         return
 
@@ -2408,6 +2547,242 @@ class Tube:
         ])
 
         return np.eye(3) + vx + vx @ vx * (1.0 / (1.0 + c))
+
+
+    def produce_XML(self, filename="zipper_tube.xml", panel_thickness=0.01,
+                     mass=1.0, gravity=(0.0, 0.0, -9.81), timestep=0.002,
+                     floor_size=(5.0, 5.0, 1.0)):
+        if len(self.boxes) < 2:
+            raise ValueError("produce_XML requires at least two boxes/sections.")
+ 
+        def normalize(v):
+            v = np.asarray(v, dtype=float)
+            norm = np.linalg.norm(v)
+            if norm < 1e-12:
+                return v
+            return v / norm
+ 
+        def rotation_matrix_to_quat(R):
+            R = np.asarray(R, dtype=float)
+            q = np.empty(4, dtype=float)
+            trace = np.trace(R)
+            if trace > 0.0:
+                s = 0.5 / np.sqrt(trace + 1.0)
+                q[0] = 0.25 / s
+                q[1] = (R[2, 1] - R[1, 2]) * s
+                q[2] = (R[0, 2] - R[2, 0]) * s
+                q[3] = (R[1, 0] - R[0, 1]) * s
+            else:
+                if R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+                    s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
+                    q[0] = (R[2, 1] - R[1, 2]) / s
+                    q[1] = 0.25 * s
+                    q[2] = (R[0, 1] + R[1, 0]) / s
+                    q[3] = (R[0, 2] + R[2, 0]) / s
+                elif R[1, 1] > R[2, 2]:
+                    s = 2.0 * np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2])
+                    q[0] = (R[0, 2] - R[2, 0]) / s
+                    q[1] = (R[0, 1] + R[1, 0]) / s
+                    q[2] = 0.25 * s
+                    q[3] = (R[1, 2] + R[2, 1]) / s
+                else:
+                    s = 2.0 * np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1])
+                    q[0] = (R[1, 0] - R[0, 1]) / s
+                    q[1] = (R[0, 2] + R[2, 0]) / s
+                    q[2] = (R[1, 2] + R[2, 1]) / s
+                    q[3] = 0.25 * s
+            return q
+ 
+        def face_frame(quad):
+            quad = np.asarray(quad, dtype=float)
+            p0, p1, p3 = quad[0], quad[1], quad[3]
+ 
+            x_axis = normalize(p1 - p0)
+            if np.linalg.norm(x_axis) < 1e-12:
+                x_axis = np.array([1.0, 0.0, 0.0])
+ 
+            v = p3 - p0
+            v_proj = v - np.dot(v, x_axis) * x_axis
+            y_axis = normalize(v_proj)
+            if np.linalg.norm(y_axis) < 1e-12:
+                p2 = quad[2]
+                v = p2 - p0
+                v_proj = v - np.dot(v, x_axis) * x_axis
+                y_axis = normalize(v_proj)
+                if np.linalg.norm(y_axis) < 1e-12:
+                    y_axis = np.array([0.0, 1.0, 0.0])
+ 
+            normal = normalize(np.cross(x_axis, y_axis))
+            if np.linalg.norm(normal) < 1e-12:
+                normal = np.array([0.0, 0.0, 1.0])
+            y_axis = normalize(np.cross(normal, x_axis))
+ 
+            width = np.linalg.norm(p1 - p0)
+            height = abs(np.dot(p3 - p0, y_axis))
+            size = (width / 2.0, height / 2.0, abs(panel_thickness) / 2.0)
+ 
+            rot = np.column_stack((x_axis, y_axis, normal))
+            quat = rotation_matrix_to_quat(rot)
+            centroid = np.mean(quad, axis=0)
+            return centroid, quat, size, rot
+ 
+        def fmt3(v):
+            return f"{v[0]:.6f} {v[1]:.6f} {v[2]:.6f}"
+ 
+        def fmtq(q):
+            return " ".join(f"{float(c):.6f}" for c in q)
+ 
+        # Generate binary STL meshes for every panel before writing XML.
+        self.create_prototypes_stl(panel_thickness, scale=1.0, binary=True)
+ 
+        # ---- geometry pass: compute every segment's panel frames up front,
+        # so inter-segment equality constraints can reference both sides ----
+        n_segments = len(self.boxes) - 1
+        segs = []
+        for idx in range(n_segments):
+            box_a = np.asarray(self.boxes[idx], dtype=float)[:, :3]
+            box_b = np.asarray(self.boxes[idx + 1], dtype=float)[:, :3]
+ 
+            edge_mid = [0.5 * (box_a[k] + box_b[k]) for k in range(4)]
+            edge_axis = [normalize(box_b[k] - box_a[k]) for k in range(4)]
+ 
+            quads = [
+                [box_a[0], box_a[1], box_b[1], box_b[0]],
+                [box_a[1], box_a[2], box_b[2], box_b[1]],
+                [box_a[2], box_a[3], box_b[3], box_b[2]],
+                [box_a[3], box_b[3], box_b[0], box_a[0]],
+            ]
+            panels = [face_frame(q) for q in quads]  # (centroid, quat, size, rot) x4
+ 
+            segs.append({
+                "box_a": box_a, "box_b": box_b,
+                "edge_mid": edge_mid, "edge_axis": edge_axis,
+                "panels": panels,
+            })
+ 
+        lines = []
+        lines.append('<mujoco model="zipper_tube">')
+        xml_dir = os.path.dirname(os.path.abspath(filename))
+        mesh_dir = os.path.relpath(os.path.abspath('stls'), start=xml_dir)
+        lines.append(f"   <compiler meshdir = '{mesh_dir}/'/>")
+        lines.append('<asset>')
+        for idx in range(len(self.boxes) - 1):
+            for face_id in range(4):
+                lines.append(f'    <mesh name="panel_s{idx}_f{face_id}" file="panel_s{idx}_f{face_id}.stl"/>')
+        lines.append('</asset>')
+        lines.append(f'  <option timestep="{timestep:.6f}" gravity="{fmt3(gravity)}"/>')
+        lines.append('  <worldbody>')
+        lines.append('    <light pos="0 5 5" dir="0 -1 -1"/>')
+        # panels only ever collide with the floor, never with each other --
+        # adjacent panels are *meant* to touch/overlap by their thickness,
+        # so panel-panel contact has to be excluded or it fights every
+        # hinge and equality constraint in the model.
+        lines.append(f'    <geom name="floor" type="plane" size="{fmt3(floor_size)}" rgba="0.9 0.9 0.9 1" contype="2" conaffinity="1"/>')
+        lines.append('    <body name="tube_root" pos="0 0 0">')
+        # lines.append('      <freejoint/>')
+ 
+        equality_lines = []
+ 
+        for idx, seg in enumerate(segs):
+            edge_mid = seg["edge_mid"]
+            panels = seg["panels"]
+            s = f"segment{idx}"
+ 
+            # panel0: body origin == its own centroid, rigidly oriented to
+            # its face frame so geoms and joints can be defined locally.
+            centroid0, quat0, size0, R0 = panels[0]
+            lines.append(f'      <body name="{s}_panel0" pos="{fmt3(centroid0)}" quat="{fmtq(quat0)}">')
+            lines.append(
+                f'        <geom name="{s}_panel0_geom" type="mesh" mesh="panel_s{idx}_f0" '
+                f'pos="0 0 0" quat="1 0 0 0" '
+                f'rgba="0.3 0.6 0.8 1" mass="{mass:.6f}" contype="1" conaffinity="2"/>'
+            )
+
+            indent = "        "
+            parent_centroid = centroid0
+            parent_R = R0
+            for k in (1, 2, 3):
+                centroid_k, quat_k, size_k, R_k = panels[k]
+                rel_pos = parent_R.T @ (centroid_k - parent_centroid)
+                rel_quat = rotation_matrix_to_quat(parent_R.T @ R_k)
+                joint_pos = R_k.T @ (edge_mid[k] - centroid_k)
+                axis = R_k.T @ seg["edge_axis"][k]
+
+                lines.append(f'{indent}<body name="{s}_panel{k}" pos="{fmt3(rel_pos)}" quat="{fmtq(rel_quat)}">')
+                indent += "  "
+                lines.append(
+                    f'{indent}<joint name="{s}_hinge{k}" type="hinge" '
+                    f'pos="{fmt3(joint_pos)}" axis="{fmt3(axis)}"/>'
+                )
+                lines.append(
+                    f'{indent}<geom name="{s}_panel{k}_geom" type="mesh" mesh="panel_s{idx}_f{k}" '
+                    f'pos="0 0 0" quat="1 0 0 0" '
+                    f'rgba="0.3 0.6 0.8 1" mass="{mass:.6f}" contype="1" conaffinity="2"/>'
+                )
+                parent_centroid = centroid_k
+                parent_R = R_k
+
+            for _ in (3, 2, 1):
+                indent = indent[:-2]
+                lines.append(f'{indent}</body>')
+            lines.append('      </body>\n')
+
+            # close this segment's own loop: panel3's far edge back to
+            # panel0's near edge, expressed in panel3's local frame.
+            centroid3, _, _, R3 = panels[3]
+            close_anchor = R3.T @ (edge_mid[0] - centroid3)
+            equality_lines.append(
+                f'    <connect name="{s}_close" body1="{s}_panel3" '
+                f'body2="{s}_panel0" anchor="{fmt3(close_anchor)}"/>'
+            )
+
+        lines.append('    </body>')
+        lines.append('  </worldbody>')
+        lines.append('  <equality>')
+        lines.extend(equality_lines)
+ 
+        # ---- connect each segment to the next with a full ring of 4
+        # equality constraints (one per panel), not just a single point ----
+        for idx in range(n_segments - 1):
+            seg_a, seg_b = segs[idx], segs[idx + 1]
+            box_b = seg_a["box_b"]  # == seg_b["box_a"], the shared cross-section
+            for k in range(4):
+                centroid_ak, _, _, R_ak = seg_a["panels"][k]
+                next_k = (k + 1) % 4
+                shared_edge_mid = 0.5 * (box_b[k] + box_b[next_k])
+                anchor = R_ak.T @ (shared_edge_mid - centroid_ak)
+                equality_lines_extra = (
+                    f'    <connect name="segment{idx}_to_{idx+1}_panel{k}" '
+                    f'body1="segment{idx}_panel{k}" body2="segment{idx+1}_panel{k}" '
+                    f'anchor="{fmt3(anchor)}"/>'
+                )
+                lines.append(equality_lines_extra)
+ 
+        lines.append('  </equality>')
+        lines.append('</mujoco>')
+ 
+        xml_text = "\n".join(lines)
+        with open(filename, "w") as fh:
+            fh.write(xml_text)
+ 
+        return filename
+ 
+ 
+def make_synthetic_boxes(n_sections=4, side=0.2, length=0.3):
+    boxes = []
+    for i in range(n_sections):
+        z = i * length
+        pts = np.array([
+            [ side,  side, z, 1.0],
+            [-side,  side, z, 1.0],
+            [-side, -side, z, 1.0],
+            [ side, -side, z, 1.0],
+        ])
+        boxes.append(pts)
+    return boxes
+
+
+
 
 
 # ── Demo ───────────────────────────────────────────────────────────────────

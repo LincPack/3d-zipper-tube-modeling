@@ -1,0 +1,60 @@
+<mujoco model="zipper_tube">
+   <compiler meshdir = '../stls/'/>
+<asset>
+    <mesh name="panel_s0_f0" file="panel_s0_f0.stl"/>
+    <mesh name="panel_s0_f1" file="panel_s0_f1.stl"/>
+    <mesh name="panel_s0_f2" file="panel_s0_f2.stl"/>
+    <mesh name="panel_s0_f3" file="panel_s0_f3.stl"/>
+    <mesh name="panel_s1_f0" file="panel_s1_f0.stl"/>
+    <mesh name="panel_s1_f1" file="panel_s1_f1.stl"/>
+    <mesh name="panel_s1_f2" file="panel_s1_f2.stl"/>
+    <mesh name="panel_s1_f3" file="panel_s1_f3.stl"/>
+</asset>
+  <option timestep="0.002000" gravity="0.000000 0.000000 -9.810000"/>
+  <worldbody>
+    <light pos="0 5 5" dir="0 -1 -1"/>
+    <geom name="floor" type="plane" size="5.000000 5.000000 1.000000" rgba="0.9 0.9 0.9 1" contype="2" conaffinity="1"/>
+    <body name="tube_root" pos="0 0 0">
+      <body name="segment0_panel0" pos="0.250000 0.150000 0.000000" quat="1.000000 0.000000 -0.000000 -0.000000">
+        <geom name="segment0_panel0_geom" type="mesh" mesh="panel_s0_f0" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+        <body name="segment0_panel1" pos="0.250000 0.000000 0.100000" quat="0.707107 0.000000 -0.707107 -0.000000">
+          <joint name="segment0_hinge1" type="hinge" pos="-0.100000 -0.000000 0.000000" axis="-0.000000 1.000000 0.000000"/>
+          <geom name="segment0_panel1_geom" type="mesh" mesh="panel_s0_f1" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+          <body name="segment0_panel2" pos="0.100000 0.000000 0.250000" quat="0.707107 0.000000 -0.707107 0.000000">
+            <joint name="segment0_hinge2" type="hinge" pos="-0.250000 -0.000000 0.000000" axis="0.000000 1.000000 0.000000"/>
+            <geom name="segment0_panel2_geom" type="mesh" mesh="panel_s0_f2" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+            <body name="segment0_panel3" pos="0.250000 0.000000 0.100000" quat="0.500000 0.500000 0.500000 0.500000">
+              <joint name="segment0_hinge3" type="hinge" pos="0.000000 -0.100000 0.000000" axis="1.000000 0.000000 0.000000"/>
+              <geom name="segment0_panel3_geom" type="mesh" mesh="panel_s0_f3" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <body name="segment1_panel0" pos="0.250000 0.450000 0.000000" quat="1.000000 0.000000 -0.000000 -0.000000">
+        <geom name="segment1_panel0_geom" type="mesh" mesh="panel_s1_f0" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+        <body name="segment1_panel1" pos="0.250000 -0.000000 0.100000" quat="0.707107 -0.000000 -0.707107 0.000000">
+          <joint name="segment1_hinge1" type="hinge" pos="-0.100000 0.000000 0.000000" axis="0.000000 1.000000 0.000000"/>
+          <geom name="segment1_panel1_geom" type="mesh" mesh="panel_s1_f1" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+          <body name="segment1_panel2" pos="0.100000 0.000000 0.250000" quat="0.707107 -0.000000 -0.707107 0.000000">
+            <joint name="segment1_hinge2" type="hinge" pos="-0.250000 0.000000 0.000000" axis="0.000000 1.000000 0.000000"/>
+            <geom name="segment1_panel2_geom" type="mesh" mesh="panel_s1_f2" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+            <body name="segment1_panel3" pos="0.250000 0.000000 0.100000" quat="0.500000 0.500000 0.500000 0.500000">
+              <joint name="segment1_hinge3" type="hinge" pos="-0.000000 -0.100000 -0.000000" axis="1.000000 0.000000 0.000000"/>
+              <geom name="segment1_panel3_geom" type="mesh" mesh="panel_s1_f3" pos="0 0 0" quat="1 0 0 0" rgba="0.3 0.6 0.8 1" mass="1.000000" contype="1" conaffinity="2"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+    </body>
+  </worldbody>
+  <equality>
+    <connect name="segment0_close" body1="segment0_panel3" body2="segment0_panel0" anchor="0.000000 0.150000 0.000000"/>
+    <connect name="segment1_close" body1="segment1_panel3" body2="segment1_panel0" anchor="0.000000 0.450000 0.000000"/>
+    <connect name="segment0_to_1_panel0" body1="segment0_panel0" body2="segment1_panel0" anchor="0.250000 0.300000 0.000000"/>
+    <connect name="segment0_to_1_panel1" body1="segment0_panel1" body2="segment1_panel1" anchor="0.500000 0.300000 0.100000"/>
+    <connect name="segment0_to_1_panel2" body1="segment0_panel2" body2="segment1_panel2" anchor="0.250000 0.300000 0.200000"/>
+    <connect name="segment0_to_1_panel3" body1="segment0_panel3" body2="segment1_panel3" anchor="0.000000 0.300000 0.100000"/>
+  </equality>
+</mujoco>

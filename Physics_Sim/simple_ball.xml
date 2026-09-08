@@ -5,7 +5,7 @@
         <geom name="floor" type="plane" size="10 10 0.1" rgba="0.8 0.8 0.8 1"/>
         
         <!-- Define a dynamic body (a red ball that falls) -->
-        <body name="falling_ball" pos="0 0 2">
+        <body name="falling_ball" pos="0 0 10">
             <!-- free joint gives the object 6 degrees of freedom (gravity applies) -->
             <freejoint/>
             <geom name="ball" type="sphere" size="0.15" rgba="1 0 0 1" mass="1"/>

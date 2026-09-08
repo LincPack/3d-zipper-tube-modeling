@@ -1,0 +1,61 @@
+<!-- <mujoco model = "Double Panel">
+    <option timestep = "0.002" gravity = "0 0 -9.81"/>
+    <worldbody>
+        <light pos ='0 5 5' dir = '0 -1 -1'/>
+        <geom name = 'floor' type = 'plane' size = '5 5 0.05' rgba = '0.9 0.9 0.9 1'/>
+        <body name = 'panel1' pos = '0 0 0'>
+            <freejoint/>
+            <geom type = 'box' size = '0.5 3 0.05' rgba = '0 0 1 1' mass = '1'/>
+            <body name = 'panel2' pos = '1 0 0'>
+                <joint type = 'hinge' axis = '0 1 0' pos = '-.5 0 0'/>
+                <geom type = 'box' size = '0.5 3 0.05' rgba = '0 1 0 1' mass = '1'/>
+            </body>
+            <body name = 'panel3' pos = '-1 0 0'>
+                <joint type = 'hinge' axis = '0 1 0' pos = ' 0.5 0 0'/>
+                <geom type = 'box' size = '0.5 3 0.05' rgba = '1 0 0 1' mass = '1'/>
+            </body>
+        </body>
+    </worldbody>
+</mujoco> -->
+
+
+<mujoco model = "Double Panel">
+    <option timestep = "0.002" gravity = "0 0 -9.81"/>
+<worldbody>
+    <light pos ='0 5 5' dir = '0 -1 -1'/>
+    <geom name = 'floor' type = 'plane' size = '5 5 1' rgba = '0.9 0.9 0.9 1'/>
+
+    <body name = 'panel0' pos = '0 0 .01'>
+        <!-- <freejoint/> -->
+        <geom type = 'box' size = '0.5 3 0.01' rgba = '0 0 1 1' mass = '1'/>
+
+        <body name = 'panel1' pos = '0.51 0 .51'>
+            <joint type = 'hinge' axis = '0 1 0' pos = '-0.01 0 -0.5'/>
+            <geom type = 'box' size = '0.01 3 0.5' rgba = '0 1 0 1' mass = '1'/>
+        </body>
+        <body name = 'panel2' pos = '-0.51 0 0.51'>
+            <joint name = "actuation_joint" type = 'hinge' axis = '0 1 0' pos = '0.01 0 -0.5'/>
+            <geom type = 'box' size = '0.01 3 0.5' rgba = '1 0 1 1' mass = '1'/>
+        
+            <body name = 'panel3' pos = '0.51 0 0.51'>
+                <geom type = 'box' size = '0.5 3 0.01' rgba = '1 1 1 1' mass = '1'/>
+                <joint type = 'hinge' axis = '0 1 0' pos = '-0.5 0 -0.01'/>
+            </body>
+        </body>
+    </body>
+</worldbody>
+<!-- 
+<equality>
+  <connect name="close_loop" body1="panel3" body2="panel1" anchor="0.5 0 0"/>
+</equality> -->
+
+<equality>
+    <connect name = "close_loop" body1 = "panel3" body2 = "panel1" anchor = '0.51 0 0'/>
+</equality>
+
+<actuator>
+        <position name="servo_actuation" joint="actuation_joint" kp="200" kv= "10" ctrlrange="0 1.57" ctrllimited="true"/>
+</actuator>
+
+</mujoco>
+<!-- The axis is kind of like the orientation of the hinge -->
