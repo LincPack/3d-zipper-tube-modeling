@@ -1,0 +1,178 @@
+Eq(g*h*m*cos(alpha(t))/2 -
+g*h*m*sin(alpha(t))**2/(2*(cos(alpha(t)) + 3)) +
+g*m*(h*cos(alpha(t)) + 3*h +
+20)*cos(alpha(t))/(2*(cos(alpha(t)) + 3)) +
+g*m*(h*cos(alpha(t)) + 3*h +
+20)*sin(alpha(t))**2/(2*(cos(alpha(t)) + 3)**2) +
+h**2*m*Derivative(alpha(t), (t, 2))/4 +
+m*((1600*(138*sin(alpha(t)) - 80*sin(2*alpha(t)) -
+5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) + sin(5*alpha(t)))**2
++ (160*h*sin(alpha(t))**5*cos(alpha(t)) +
+180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) + 40*sin(5*alpha(t)))**2)*(cos(alpha(t))
++ 3)**4 + (15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4*(h*cos(alpha(t))**3 +
+6*h*cos(alpha(t))**2 + 9*h*cos(alpha(t)) + 60*cos(alpha(t))
++ 20)**2)*(60*sin(alpha(t))*Derivative(alpha(t), t) +
+80*sin(2*alpha(t))*Derivative(alpha(t), t) +
+12*sin(3*alpha(t))*Derivative(alpha(t),
+t))*Derivative(alpha(t), t)/(4*(cos(alpha(t)) +
+3)**4*(15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**5) - m*((1600*(138*sin(alpha(t)) -
+80*sin(2*alpha(t)) - 5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) +
+sin(5*alpha(t)))**2 + (160*h*sin(alpha(t))**5*cos(alpha(t))
++ 180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) + 40*sin(5*alpha(t)))**2)*(cos(alpha(t))
++ 3)**4 + (15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4*(h*cos(alpha(t))**3 +
+6*h*cos(alpha(t))**2 + 9*h*cos(alpha(t)) + 60*cos(alpha(t))
++ 20)**2)*(60*sin(alpha(t)) + 80*sin(2*alpha(t)) +
+12*sin(3*alpha(t)))*Derivative(alpha(t),
+t)**2/(8*(cos(alpha(t)) + 3)**4*(15*cos(alpha(t)) +
+10*cos(2*alpha(t)) + cos(3*alpha(t)) - 26)**5) +
+m*((1600*(138*sin(alpha(t)) - 80*sin(2*alpha(t)) -
+5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) + sin(5*alpha(t)))**2
++ (160*h*sin(alpha(t))**5*cos(alpha(t)) +
+180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) + 40*sin(5*alpha(t)))**2)*(cos(alpha(t))
++ 3)**4 + (15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4*(h*cos(alpha(t))**3 +
+6*h*cos(alpha(t))**2 + 9*h*cos(alpha(t)) + 60*cos(alpha(t))
++ 20)**2)*Derivative(alpha(t), (t, 2))/(4*(cos(alpha(t)) +
+3)**4*(15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4) + m*((1600*(138*sin(alpha(t)) -
+80*sin(2*alpha(t)) - 5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) +
+sin(5*alpha(t)))**2 + (160*h*sin(alpha(t))**5*cos(alpha(t))
++ 180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) + 40*sin(5*alpha(t)))**2)*(cos(alpha(t))
++ 3)**4 + (15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4*(h*cos(alpha(t))**3 +
+6*h*cos(alpha(t))**2 + 9*h*cos(alpha(t)) + 60*cos(alpha(t))
++ 20)**2)*sin(alpha(t))*Derivative(alpha(t),
+t)**2/(2*(cos(alpha(t)) + 3)**5*(15*cos(alpha(t)) +
+10*cos(2*alpha(t)) + cos(3*alpha(t)) - 26)**4) +
+m*((1600*(276*cos(alpha(t))*Derivative(alpha(t), t) -
+320*cos(2*alpha(t))*Derivative(alpha(t), t) -
+30*cos(3*alpha(t))*Derivative(alpha(t), t) +
+64*cos(4*alpha(t))*Derivative(alpha(t), t) +
+10*cos(5*alpha(t))*Derivative(alpha(t),
+t))*(138*sin(alpha(t)) - 80*sin(2*alpha(t)) -
+5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) + sin(5*alpha(t))) +
+(160*h*sin(alpha(t))**5*cos(alpha(t)) +
+180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) + 40*sin(5*alpha(t)))*(-
+320*h*sin(alpha(t))**6*Derivative(alpha(t), t) + 1600*h*sin(
+alpha(t))**4*cos(alpha(t))**2*Derivative(alpha(t), t) +
+1800*h*sin(alpha(t))**4*cos(alpha(t))*Derivative(alpha(t),
+t) -
+72*h*sin(alpha(t))**4*cos(3*alpha(t))*Derivative(alpha(t),
+t) - 96*h*sin(alpha(t))**3*sin(3*alpha(t))*cos(alpha(t))*Der
+ivative(alpha(t), t) +
+1838*h*cos(alpha(t))*Derivative(alpha(t), t) -
+1536*h*cos(2*alpha(t))*Derivative(alpha(t), t) -
+1008*h*cos(3*alpha(t))*Derivative(alpha(t), t) +
+512*h*cos(4*alpha(t))*Derivative(alpha(t), t) +
+180*h*cos(5*alpha(t))*Derivative(alpha(t), t) +
+14*h*cos(7*alpha(t))*Derivative(alpha(t), t) +
+11040*cos(alpha(t))*Derivative(alpha(t), t) -
+12800*cos(2*alpha(t))*Derivative(alpha(t), t) -
+1200*cos(3*alpha(t))*Derivative(alpha(t), t) +
+2560*cos(4*alpha(t))*Derivative(alpha(t), t) +
+400*cos(5*alpha(t))*Derivative(alpha(t), t)))*(cos(alpha(t))
++ 3)**4 - 4*(1600*(138*sin(alpha(t)) - 80*sin(2*alpha(t)) -
+5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) + sin(5*alpha(t)))**2
++ (160*h*sin(alpha(t))**5*cos(alpha(t)) +
+180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) + 40*sin(5*alpha(t)))**2)*(cos(alpha(t))
++ 3)**3*sin(alpha(t))*Derivative(alpha(t), t) +
+(-60*sin(alpha(t))*Derivative(alpha(t), t) -
+80*sin(2*alpha(t))*Derivative(alpha(t), t) -
+12*sin(3*alpha(t))*Derivative(alpha(t),
+t))*(15*cos(alpha(t)) + 10*cos(2*alpha(t)) + cos(3*alpha(t))
+- 26)**3*(h*cos(alpha(t))**3 + 6*h*cos(alpha(t))**2 +
+9*h*cos(alpha(t)) + 60*cos(alpha(t)) + 20)**2 +
+(-6*h*sin(alpha(t))*cos(alpha(t))**2*Derivative(alpha(t), t)
+- 24*h*sin(alpha(t))*cos(alpha(t))*Derivative(alpha(t), t) -
+18*h*sin(alpha(t))*Derivative(alpha(t), t) -
+120*sin(alpha(t))*Derivative(alpha(t), t))*(15*cos(alpha(t))
++ 10*cos(2*alpha(t)) + cos(3*alpha(t)) -
+26)**4*(h*cos(alpha(t))**3 + 6*h*cos(alpha(t))**2 +
+9*h*cos(alpha(t)) + 60*cos(alpha(t)) +
+20))*Derivative(alpha(t), t)/(4*(cos(alpha(t)) +
+3)**4*(15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4) - m*((1600*(138*sin(alpha(t)) -
+80*sin(2*alpha(t)) - 5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) +
+sin(5*alpha(t)))*(276*cos(alpha(t)) - 320*cos(2*alpha(t)) -
+30*cos(3*alpha(t)) + 64*cos(4*alpha(t)) +
+10*cos(5*alpha(t))) + (160*h*sin(alpha(t))**5*cos(alpha(t))
++ 180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) +
+40*sin(5*alpha(t)))*(-320*h*sin(alpha(t))**6 +
+1600*h*sin(alpha(t))**4*cos(alpha(t))**2 +
+1800*h*sin(alpha(t))**4*cos(alpha(t)) -
+72*h*sin(alpha(t))**4*cos(3*alpha(t)) -
+96*h*sin(alpha(t))**3*sin(3*alpha(t))*cos(alpha(t)) +
+1838*h*cos(alpha(t)) - 1536*h*cos(2*alpha(t)) -
+1008*h*cos(3*alpha(t)) + 512*h*cos(4*alpha(t)) +
+180*h*cos(5*alpha(t)) + 14*h*cos(7*alpha(t)) +
+11040*cos(alpha(t)) - 12800*cos(2*alpha(t)) -
+1200*cos(3*alpha(t)) + 2560*cos(4*alpha(t)) +
+400*cos(5*alpha(t))))*(cos(alpha(t)) + 3)**4 -
+4*(1600*(138*sin(alpha(t)) - 80*sin(2*alpha(t)) -
+5*sin(3*alpha(t)) + 8*sin(4*alpha(t)) + sin(5*alpha(t)))**2
++ (160*h*sin(alpha(t))**5*cos(alpha(t)) +
+180*h*sin(alpha(t))**5 -
+12*h*sin(alpha(t))**4*sin(3*alpha(t)) + 919*h*sin(alpha(t))
+- 384*h*sin(2*alpha(t)) - 168*h*sin(3*alpha(t)) +
+64*h*sin(4*alpha(t)) + 18*h*sin(5*alpha(t)) +
+h*sin(7*alpha(t)) + 5520*sin(alpha(t)) -
+3200*sin(2*alpha(t)) - 200*sin(3*alpha(t)) +
+320*sin(4*alpha(t)) + 40*sin(5*alpha(t)))**2)*(cos(alpha(t))
++ 3)**3*sin(alpha(t)) + (-60*sin(alpha(t)) -
+80*sin(2*alpha(t)) - 12*sin(3*alpha(t)))*(15*cos(alpha(t)) +
+10*cos(2*alpha(t)) + cos(3*alpha(t)) -
+26)**3*(h*cos(alpha(t))**3 + 6*h*cos(alpha(t))**2 +
+9*h*cos(alpha(t)) + 60*cos(alpha(t)) + 20)**2 +
+(-6*h*sin(alpha(t))*cos(alpha(t))**2 -
+24*h*sin(alpha(t))*cos(alpha(t)) - 18*h*sin(alpha(t)) -
+120*sin(alpha(t)))*(15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4*(h*cos(alpha(t))**3 +
+6*h*cos(alpha(t))**2 + 9*h*cos(alpha(t)) + 60*cos(alpha(t))
++ 20))*Derivative(alpha(t), t)**2/(8*(cos(alpha(t)) +
+3)**4*(15*cos(alpha(t)) + 10*cos(2*alpha(t)) +
+cos(3*alpha(t)) - 26)**4), -b*Derivative(alpha(t), t) + tau)

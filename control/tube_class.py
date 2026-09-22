@@ -612,11 +612,27 @@ class Tube:
             y = com_position[1]
             z = com_position[2]
 
+            x = sp.trigsimp(x)
+            y = sp.trigsimp(y)
+            z = sp.trigsimp(z)
+
             potential_energy = (self.mass * gravity * z).subs(substitutions)
             x_dot = sp.diff(x, alpha) * alpha_dot
             y_dot = sp.diff(y, alpha) * alpha_dot
             z_dot = sp.diff(z, alpha) * alpha_dot
-            kinetic_energy = (0.5 * self.mass * (x_dot**2 + y_dot**2 + z_dot**2)).subs(substitutions)
+
+            x_dot = sp.trigsimp(x_dot)
+            y_dot = sp.trigsimp(y_dot)
+            z_dot = sp.trigsimp(z_dot)
+            potential_energy = sp.simplify(potential_energy)
+
+
+
+            kinetic_energy = (sp.Rational(1, 2) * self.mass * (x_dot**2 + y_dot**2 + z_dot**2)).subs(substitutions)
+            kinetic_energy = sp.trigsimp(kinetic_energy)
+            kinetic_energy = sp.simplify(kinetic_energy)
+            # kinetic_energy = sp.simplify(kinetic_energy)
+
 
             self.energies.append({
                 'panel': panel_index,
