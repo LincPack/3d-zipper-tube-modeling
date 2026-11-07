@@ -7,8 +7,8 @@ name = "zipper-tube"
 version = "0.1.0"
 description = "Geometry modelling for 3D zipper tubes."
 authors = [
-    {name = "Lincoln Packer", email = "lincolnppacker@gmail.com"}
-    {name = "Peter Cope", email = ""}
+    {name = "Lincoln Packer", email = "lincolnppacker@gmail.com"},
+    {name = "Peter Cope", email = "peter.michael.cope@gmail.com"}
 ]
 license = {text = "Apache-2.0"}
 readme = "README.md"
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = ""
+"Homepage" = "https://github.com/LincPack/3d-zipper-tube-modeling"
 
 [tool.setuptools]
 packages = ["zipper_tube"]
