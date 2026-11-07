@@ -503,12 +503,21 @@ class Tube:
 
         ax = plt.axes(projection="3d")
 
-        ax.set_xlim([-4*self.width, 4*self.width])
+        # Automatically fit the axes to the entire tube
+        all_points = np.vstack([box[:, :3] for box in self.boxes])
 
-        ax.set_ylim([-4*self.width, 4*self.width])
+        x_min, y_min, z_min = all_points.min(axis=0)
+        x_max, y_max, z_max = all_points.max(axis=0)
 
-        ax.set_zlim([-4*self.height, 4*self.height])
+        margin = 0.1 * max(
+            x_max - x_min,
+            y_max - y_min,
+            z_max - z_min
+        )
 
+        ax.set_xlim(x_min - margin, x_max + margin)
+        ax.set_ylim(y_min - margin, y_max + margin)
+        ax.set_zlim(z_min - margin, z_max + margin)
 
         ax.plot([0, 2], [0, 0], [0, 0], color='r')
 
@@ -609,294 +618,234 @@ class Tube:
 
             raise ValueError("rep_method must be either 'p' or 't'.")
 
-        
     def create_prototypes(self, model_thickness, scale):
 
         """Generate STEP files for the individual panel faces of the tube.
 
-
         For each quadrilateral face formed between two consecutive segment
+        boxes, this method computes a unit normal, scales the panel geometry
+        by `scale`, extrudes the scaled face by `model_thickness` along that
+        normal, and writes the resulting solid to a separate STEP AP214 file.
 
-        boxes, this method computes a unit normal, extrudes the face by
-
-        ``model_thickness`` along that normal, and writes the resulting solid
-
-        to a separate STEP AP214 file.  The naming convention used is
-
-        ``panel_s<i>_f<j>.step`` where ``i`` is the index of the segment and
-
-        ``j`` is the face number (0–3).
-
+        The naming convention used is
+        ``P_segment_panel position.step`` segment and panel position are both numbers (see paper)
 
         Parameters
-
         ----------
-
         model_thickness : float
-
-            Thickness, in the same units as the tube geometry, by which each
-
-            panel is extruded normal to the face.
+            Thickness of each panel in the output STEP file's units.
+            This value is NOT affected by `scale`.
 
         scale : float
-
-            Currently unused; reserved for future support of geometry scaling.
-
+            Scaling factor applied to all panel dimensions and coordinates,
+            but not to `model_thickness`.
 
         Notes
-
         -----
-
         * Panels are only produced when the tube has more than one section.
-
         * The method delegates actual writing to :meth:`_write_step_file`.
-
         """
 
-        # For each quadrilateral face between consecutive boxes, create a thin solid by
-
-        # extruding the quad along its normal by `model_thickness` and write a STEP file.
-
+        # For each quadrilateral face between consecutive boxes, create a
+        # thin solid by extruding the quad along its normal and write the
+        # result to a STEP file.
         if self.num_sections > 1:
 
-            for i in range(len(self.boxes)-1):
+            for i in range(len(self.boxes) - 1):
 
                 b1 = self.boxes[i]
-
-                b2 = self.boxes[i+1]
-
+                b2 = self.boxes[i + 1]
 
                 quads = [
-
                     [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],  # side 1
-
                     [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],  # side 2
-
                     [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],  # side 3
-
-                    [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],  # side 4 
-
+                    [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],  # side 4
                 ]
-
 
                 for j, quad in enumerate(quads):
 
                     # Convert to numpy arrays
+                    p0 = np.array(quad[0], dtype=float).reshape(3, )
+                    p1 = np.array(quad[1], dtype=float).reshape(3, )
+                    p2 = np.array(quad[2], dtype=float).reshape(3, )
 
-                    p0 = np.array(quad[0], dtype=float).reshape(3,)
-
-                    p1 = np.array(quad[1], dtype=float).reshape(3,)
-
-                    p2 = np.array(quad[2], dtype=float).reshape(3,)
-
-
-                    # compute normal from two edges
-
+                    # Compute normal from two edges
                     v1 = p1 - p0
-
                     v2 = p2 - p1
 
                     normal = np.cross(v1, v2)
-
                     norm_len = np.linalg.norm(normal)
 
                     if norm_len == 0:
-
                         continue
 
                     normal = normal / norm_len
 
-
-                    # create 8 vertices (original 4 and extruded 4)
-
+                    # Create 8 vertices:
+                    # 4 original scaled vertices
+                    # 4 scaled vertices extruded by the unscaled thickness
                     verts = []
 
+                    # Original face
                     for vv in quad:
+                        point = np.array(vv, dtype=float).reshape(3, )
+                        scaled_point = point * scale
+                        verts.append(tuple(scaled_point))
 
-                        verts.append(tuple(np.array(vv, dtype=float).reshape(3,)))
-
+                    # Extruded face
                     for vv in quad:
+                        point = np.array(vv, dtype=float).reshape(3, )
+                        scaled_point = point * scale
 
-                        verts.append(tuple((np.array(vv, dtype=float).reshape(3,) + normal * model_thickness)))
+                        # IMPORTANT:
+                        # model_thickness is NOT multiplied by scale
+                        extruded_point = scaled_point + normal * model_thickness
 
+                        verts.append(tuple(extruded_point))
 
-                    # faces as lists of 1-based vertex indices
+                    # Faces as lists of 1-based vertex indices
+                    faces = [
+                        # Bottom (original) face
+                        [1, 2, 3, 4],
 
-                    # bottom (original) face
+                        # Top (extruded) face
+                        # Reversed order to keep normal outward
+                        [8, 7, 6, 5],
 
-                    faces = [[1,2,3,4],
+                        # Four side faces
+                        [1, 5, 6, 2],
+                        [2, 6, 7, 3],
+                        [3, 7, 8, 4],
+                        [4, 8, 5, 1]
+                    ]
 
-                             # top (extruded) face (note reversed order to keep normal outward)
+                    filename = f"P_{i+1}_{j+1}.step"
 
-                             [8,7,6,5],
-
-                             # four side faces
-
-                             [1,5,6,2],
-
-                             [2,6,7,3],
-
-                             [3,7,8,4],
-
-                             [4,8,5,1]]
-
-
-                    filename = f"panel_s{i}_f{j}.step"
-
-                    self._write_step_file(filename, verts, faces)
-
+                    self._write_step_file(
+                        filename,
+                        verts,
+                        faces
+                    )
 
         return
 
-
-    def export_panels_dxf(self, filename_prefix="panel", scale=1.0,
-
-                           layer_name="0", single_file=False):
+    def export_panels_dxf(self, filename_prefix="P", scale=1.0,
+                          layer_name="0", single_file=False):
 
         """
-
         Export panels to DXF.
 
-
         By default each quadrilateral face between successive boxes is written
-
-        to its own DXF file named ``{prefix}_s<i>_f<j>.dxf``.  If
-
+        to its own DXF file named ``{prefix}_s<i>_f<j>.dxf``. If
         ``single_file`` is True, all panels are written to a single
-
-        multi‑entity DXF named ``{prefix}.dxf`` instead.
-
+        multi-entity DXF named ``{prefix}.dxf`` instead.
 
         The geometric procedure is the same as before: compute the face normal,
-
-        form a local (u,v) basis, project the four corner points and then write
-
-        an R12 LWPOLYLINE.  The output now contains a minimal LAYER table and
-
-        each polyline is assigned to the specified ``layer_name`` which helps
-
-        tools such as Inkscape import correctly.
-
+        form a local (u,v) basis, scale the panel coordinates, project the four
+        corner points, and then write an R12 LWPOLYLINE.
 
         Parameters
-
         ----------
-
         filename_prefix : str, optional
-
-            Base name used for the output file(s).  When ``single_file`` is
-
+            Base name used for the output file(s). When ``single_file`` is
             False this string is extended with section/face suffixes.
 
         scale : float, optional
-
-            Scale factor applied to the coordinates.
+            Scale factor applied to all panel dimensions.
 
         layer_name : str, optional
-
             DXF layer on which the polylines will be placed (default ``"0"``).
 
         single_file : bool, optional
-
             Write everything to a single DXF rather than separate files.
-
         """
 
         if self.num_sections <= 1:
-
             return
-
 
         panels = []  # list of (verts2d, layer)
 
         for i in range(len(self.boxes) - 1):
 
             b1 = self.boxes[i]
-
             b2 = self.boxes[i + 1]
 
-
             quads = [
-
                 [b1[0][:3], b1[1][:3], b2[1][:3], b2[0][:3]],
-
                 [b1[1][:3], b1[2][:3], b2[2][:3], b2[1][:3]],
-
                 [b1[2][:3], b1[3][:3], b2[3][:3], b2[2][:3]],
-
                 [b1[3][:3], b2[3][:3], b2[0][:3], b1[0][:3]],
-
             ]
-
 
             for j, quad in enumerate(quads):
 
-                p0 = np.array(quad[0], dtype=float).reshape(3,)
+                # Convert first three points to numpy arrays
+                p0 = np.array(quad[0], dtype=float).reshape(3, )
+                p1 = np.array(quad[1], dtype=float).reshape(3, )
+                p2 = np.array(quad[2], dtype=float).reshape(3, )
 
-                p1 = np.array(quad[1], dtype=float).reshape(3,)
-
-                p2 = np.array(quad[2], dtype=float).reshape(3,)
-
-
+                # Compute normal from two edges
                 v1 = p1 - p0
-
                 v2 = p2 - p1
 
                 normal = np.cross(v1, v2)
-
                 norm_len = np.linalg.norm(normal)
 
                 if norm_len == 0:
-
                     continue
 
                 normal = normal / norm_len
 
-
+                # Choose a reference vector that is not parallel to the normal
                 if abs(normal[0]) < 0.9:
-
                     ref = np.array([1.0, 0.0, 0.0])
-
                 else:
-
                     ref = np.array([0.0, 1.0, 0.0])
 
+                # Create local 2D coordinate system
                 u = np.cross(ref, normal)
-
                 u /= np.linalg.norm(u)
 
                 v = np.cross(normal, u)
 
-
+                # Scale the panel geometry and project it into the local
+                # 2D coordinate system
                 verts2d = []
 
                 for vv in quad:
+                    p = np.array(vv, dtype=float).reshape(3, )
 
-                    p = np.array(vv, dtype=float).reshape(3,)
+                    # Apply scale to the geometry
+                    scaled_p = p * scale
 
-                    x = np.dot(p, u) * scale
-
-                    y = np.dot(p, v) * scale
+                    # Project scaled geometry onto the local panel coordinates
+                    x = np.dot(scaled_p, u)
+                    y = np.dot(scaled_p, v)
 
                     verts2d.append((x, y))
 
-
                 panels.append((verts2d, layer_name))
 
-
+                # Write each panel separately if requested
                 if not single_file:
+                    filename = f"{filename_prefix}_{i+1}_{j+1}.dxf"
 
-                    filename = f"{filename_prefix}_s{i}_f{j}.dxf"
+                    self._write_dxf_file(
+                        filename,
+                        verts2d,
+                        layer_name
+                    )
 
-                    self._write_dxf_file(filename, verts2d, layer_name)
-
-
+        # Write all panels into one DXF if requested
         if single_file and panels:
-
             filename = f"{filename_prefix}.dxf"
 
-            self._write_dxf_file(filename, [v for v, _ in panels], layer_name)
-
+            self._write_dxf_file(
+                filename,
+                [v for v, _ in panels],
+                layer_name
+            )
 
         return
 
