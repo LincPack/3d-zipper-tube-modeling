@@ -2766,6 +2766,537 @@ class Tube:
             fh.write(xml_text)
  
         return filename
+
+
+    #another addition of mine
+    def combined_panels_with_hinges(self, model_thickness, scale, separation=0.1, hinges_thickness=0.02):
+        """Generate a single STEP file containing all tube segments unrolled onto the XY plane with hinges.
+
+        This function unrolls each 4-panel tube segment like sheet metal, aligns
+        the flat pattern to the XY plane, applies local separations along the
+        hinge axes, stacks different tube segments sequentially on the Y-axis,
+        and links adjacent panel edges with solid hinges of specified thickness.
+
+        Parameters
+        ----------
+        model_thickness : float
+            Extrusion thickness in the positive Z direction.
+        scale : float
+            Unused; reserved for geometry scaling.
+        separation : float, optional
+            The physical gap introduced between adjacent panels of the same segment
+            and between each tube segment. Set to 0.0 for a continuous, touching sheet.
+        hinges_thickness : float, optional
+            The extrusion height/thickness of the connecting living hinges.
+        """
+
+        def find_vertex(A, B, a, b, side='ccw'):
+            """Find the 2D coordinate of vertex C given distances a=||C-A|| and b=||C-B||.
+
+            Controls winding direction ('ccw' or 'cw') to guarantee the unrolled
+            sheet unfolds outward in a single direction without overlapping itself.
+            """
+            d = np.linalg.norm(B - A)
+            if d < 1e-9:
+                return A + np.array([a, 0.0])
+
+            # Clamp d to physically possible range to prevent numerical NaN errors
+            if d > (a + b):
+                d = a + b
+            elif d < abs(a - b):
+                d = abs(a - b)
+
+            x = (a ** 2 - b ** 2 + d ** 2) / (2 * d)
+            y = np.sqrt(max(0.0, a ** 2 - x ** 2))
+            u = (B - A) / d
+
+            if side == 'ccw':
+                u_perp = np.array([-u[1], u[0]])
+            else:
+                u_perp = np.array([u[1], -u[0]])
+
+            return A + x * u + y * u_perp
+
+        if self.num_sections > 1:
+            all_verts = []
+            all_faces = []
+            all_2d_panels = []  # Master list tracking flat 2D shapes for hinge detection
+
+            # Track the vertical print-bed height (Y-axis)
+            current_y = 0.0
+
+            for i in range(len(self.boxes) - 1):
+                b1 = self.boxes[i]
+                b2 = self.boxes[i + 1]
+
+                # Collect the loop vertices and close them (5 vertices) to unwrap the 4 sides
+                V = [np.array(b1[0][:3]), np.array(b1[1][:3]), np.array(b1[2][:3]), np.array(b1[3][:3]),
+                     np.array(b1[0][:3])]
+                W = [np.array(b2[0][:3]), np.array(b2[1][:3]), np.array(b2[2][:3]), np.array(b2[3][:3]),
+                     np.array(b2[0][:3])]
+
+                V_flat = [None] * 5
+                W_flat = [None] * 5
+
+                # 1. Base the unrolling on the first longitudinal edge along the Y-axis
+                V_flat[0] = np.array([0.0, 0.0])
+                W_flat[0] = np.array([0.0, np.linalg.norm(W[0] - V[0])])
+
+                # 2. Geodesically unroll the remaining vertices step-by-step
+                for k in range(4):
+                    # Unroll bottom vertex (V_flat[k+1]) using the triangle (W_flat[k], V_flat[k], V_flat[k+1])
+                    dist_Wk_Vk1 = np.linalg.norm(W[k] - V[k + 1])
+                    dist_Vk_Vk1 = np.linalg.norm(V[k] - V[k + 1])
+                    V_flat[k + 1] = find_vertex(W_flat[k], V_flat[k], dist_Wk_Vk1, dist_Vk_Vk1, side='ccw')
+
+                    # Unroll top vertex (W_flat[k+1]) using the triangle (V_flat[k+1], W_flat[k], W_flat[k+1])
+                    dist_Vk1_Wk1 = np.linalg.norm(V[k + 1] - W[k + 1])
+                    dist_Wk_Wk1 = np.linalg.norm(W[k] - W[k + 1])
+                    W_flat[k + 1] = find_vertex(V_flat[k + 1], W_flat[k], dist_Vk1_Wk1, dist_Wk_Wk1, side='cw')
+
+                # 3. Disassemble the flat continuous sheet into 4 distinct coordinate systems
+                panel_coords = []
+                for j in range(4):
+                    panel_coords.append([
+                        V_flat[j].copy(),  # Bottom-Left
+                        V_flat[j + 1].copy(),  # Bottom-Right
+                        W_flat[j + 1].copy(),  # Top-Right
+                        W_flat[j].copy()  # Top-Left
+                    ])
+
+                # 4. Introduce 'separation' by sliding panels away along their shared joints
+                for j in range(1, 4):
+                    # Calculate the unshifted hinge vector
+                    B = W_flat[j] - V_flat[j]
+                    norm_B = np.linalg.norm(B)
+                    n = np.array([u[1], -u[0]]) if (norm_B > 1e-9 and (u := B / norm_B) is not None) else np.array(
+                        [1.0, 0.0])
+
+                    # Push the current panel and all subsequent panels outward
+                    shift = separation * n
+                    for k in range(j, 4):
+                        for m in range(4):
+                            panel_coords[k][m] += shift
+
+                # 5. Determine the boundary box of the unrolled row and align it to the layout grid
+                all_x = [pt[0] for panel in panel_coords for pt in panel]
+                all_y = [pt[1] for panel in panel_coords for pt in panel]
+
+                min_x, max_x = min(all_x), max(all_x)
+                min_y, max_y = min(all_y), max(all_y)
+
+                shift_x = -min_x
+                shift_y = -min_y + current_y
+
+                for panel in panel_coords:
+                    for pt in panel:
+                        pt[0] += shift_x
+                        pt[1] += shift_y
+
+                    # Store a copy of the 2D panel coordinates for global proximity calculations
+                    all_2d_panels.append([pt.copy() for pt in panel])
+
+                # 6. Extrude the 2D coordinates into 3D geometry (Z-Up)
+                for panel in panel_coords:
+                    panel_verts = []
+                    # Base Face (Z = 0)
+                    for pt in panel:
+                        panel_verts.append((pt[0], 0.0, pt[1]))
+                    # Top Face (Z = model_thickness)
+                    for pt in panel:
+                        panel_verts.append((pt[0], model_thickness, pt[1]))
+
+                    # Append geometry and update global vertex indexing
+                    v_offset = len(all_verts)
+                    all_verts.extend(panel_verts)
+
+                    local_faces = [
+                        [4, 3, 2, 1],  # Bottom face (Facing -Z)
+                        [5, 6, 7, 8],  # Top face (Facing +Z)
+                        [1, 2, 6, 5],  # Side 1
+                        [2, 3, 7, 6],  # Side 2
+                        [3, 4, 8, 7],  # Side 3
+                        [4, 1, 5, 8]  # Side 4
+                    ]
+
+                    for face in local_faces:
+                        global_face = [idx + v_offset for idx in face]
+                        all_faces.append(global_face)
+
+                # Shift the next tube segment (row) upward on the print bed
+                current_y += (max_y - min_y) + separation
+
+            # --- 6b. Generate Hinges between adjacent panel edges ---
+            # Automatically establish search tolerance based on your separation value
+            tolerance = separation * 1.5 if separation > 0 else 1.0
+
+            edges = []
+            for p_idx, panel in enumerate(all_2d_panels):
+                n = len(panel)
+                for i in range(n):
+                    edges.append({
+                        'panel': p_idx,
+                        'p1': panel[i],
+                        'p2': panel[(i + 1) % n]
+                    })
+
+            matched_edges = set()
+            for i, e1 in enumerate(edges):
+                if i in matched_edges:
+                    continue
+
+                for j, e2 in enumerate(edges):
+                    if j <= i or j in matched_edges or e1['panel'] == e2['panel']:
+                        continue
+
+                    # Evaluate endpoint distances crosswise across the unrolled gaps
+                    d1 = np.linalg.norm(e1['p1'] - e2['p2'])
+                    d2 = np.linalg.norm(e1['p2'] - e2['p1'])
+
+                    # If the distance parameters closely mirror the separation width, build a hinge bridge
+                    if d1 < tolerance and d2 < tolerance:
+                        matched_edges.add(i)
+                        matched_edges.add(j)
+
+                        hinge_poly = [e1['p1'], e1['p2'], e2['p1'], e2['p2']]
+                        hinge_verts = []
+
+                        # Base Face matching original panel orientation mapping
+                        for pt in hinge_poly:
+                            hinge_verts.append((pt[0], 0.0, pt[1]))
+                        # Top Face matching original orientation, constrained by hinges_thickness
+                        for pt in hinge_poly:
+                            hinge_verts.append((pt[0], hinges_thickness, pt[1]))
+
+                        v_offset = len(all_verts)
+                        all_verts.extend(hinge_verts)
+
+                        local_hinge_faces = [
+                            [4, 3, 2, 1],  # Bottom face
+                            [5, 6, 7, 8],  # Top face
+                            [1, 2, 6, 5],  # Side 1
+                            [2, 3, 7, 6],  # Side 2
+                            [3, 4, 8, 7],  # Side 3
+                            [4, 1, 5, 8]  # Side 4
+                        ]
+
+                        for face in local_hinge_faces:
+                            all_faces.append([idx + v_offset for idx in face])
+
+            # 7. Output the single multi-solid flat pattern
+            filename = "all_panels_layout.step"
+            self._write_step_file(filename, all_verts, all_faces)
+
+        return
+
+#another addition of mine
+    def combined_panels_without_hinges(self, model_thickness, scale, separation=0.1):
+        """Generate a single STEP file containing all tube segments unrolled onto the XY plane.
+
+        This function unrolls each 4-panel tube segment like sheet metal, aligns
+        the flat pattern to the XY plane, applies local separations along the
+        hinge axes, and stacks different tube segments sequentially on the Y-axis.
+
+        Parameters
+        ----------
+        model_thickness : float
+            Extrusion thickness in the positive Z direction.
+        scale : float
+            Unused; reserved for geometry scaling.
+        separation : float, optional
+            The physical gap introduced between adjacent panels of the same segment
+            and between each tube segment. Set to 0.0 for a continuous, touching sheet.
+        """
+
+        def find_vertex(A, B, a, b, side='ccw'):
+            """Find the 2D coordinate of vertex C given distances a=||C-A|| and b=||C-B||.
+
+            Controls winding direction ('ccw' or 'cw') to guarantee the unrolled
+            sheet unfolds outward in a single direction without overlapping itself.
+            """
+            d = np.linalg.norm(B - A)
+            if d < 1e-9:
+                return A + np.array([a, 0.0])
+
+            # Clamp d to physically possible range to prevent numerical NaN errors
+            if d > (a + b):
+                d = a + b
+            elif d < abs(a - b):
+                d = abs(a - b)
+
+            x = (a ** 2 - b ** 2 + d ** 2) / (2 * d)
+            y = np.sqrt(max(0.0, a ** 2 - x ** 2))
+            u = (B - A) / d
+
+            if side == 'ccw':
+                u_perp = np.array([-u[1], u[0]])
+            else:
+                u_perp = np.array([u[1], -u[0]])
+
+            return A + x * u + y * u_perp
+
+        if self.num_sections > 1:
+            all_verts = []
+            all_faces = []
+
+            # Track the vertical print-bed height (Y-axis)
+            current_y = 0.0
+
+            for i in range(len(self.boxes) - 1):
+                b1 = self.boxes[i]
+                b2 = self.boxes[i + 1]
+
+                # Collect the loop vertices and close them (5 vertices) to unwrap the 4 sides
+                V = [np.array(b1[0][:3]), np.array(b1[1][:3]), np.array(b1[2][:3]), np.array(b1[3][:3]),
+                     np.array(b1[0][:3])]
+                W = [np.array(b2[0][:3]), np.array(b2[1][:3]), np.array(b2[2][:3]), np.array(b2[3][:3]),
+                     np.array(b2[0][:3])]
+
+                V_flat = [None] * 5
+                W_flat = [None] * 5
+
+                # 1. Base the unrolling on the first longitudinal edge along the Y-axis
+                V_flat[0] = np.array([0.0, 0.0])
+                W_flat[0] = np.array([0.0, np.linalg.norm(W[0] - V[0])])
+
+                # 2. Geodesically unroll the remaining vertices step-by-step
+                for k in range(4):
+                    # Unroll bottom vertex (V_flat[k+1]) using the triangle (W_flat[k], V_flat[k], V_flat[k+1])
+                    dist_Wk_Vk1 = np.linalg.norm(W[k] - V[k + 1])
+                    dist_Vk_Vk1 = np.linalg.norm(V[k] - V[k + 1])
+                    V_flat[k + 1] = find_vertex(W_flat[k], V_flat[k], dist_Wk_Vk1, dist_Vk_Vk1, side='ccw')
+
+                    # Unroll top vertex (W_flat[k+1]) using the triangle (V_flat[k+1], W_flat[k], W_flat[k+1])
+                    dist_Vk1_Wk1 = np.linalg.norm(V[k + 1] - W[k + 1])
+                    dist_Wk_Wk1 = np.linalg.norm(W[k] - W[k + 1])
+                    W_flat[k + 1] = find_vertex(V_flat[k + 1], W_flat[k], dist_Vk1_Wk1, dist_Wk_Wk1, side='cw')
+
+                # 3. Disassemble the flat continuous sheet into 4 distinct coordinate systems
+                panel_coords = []
+                for j in range(4):
+                    panel_coords.append([
+                        V_flat[j].copy(),  # Bottom-Left
+                        V_flat[j + 1].copy(),  # Bottom-Right
+                        W_flat[j + 1].copy(),  # Top-Right
+                        W_flat[j].copy()  # Top-Left
+                    ])
+
+                # 4. Introduce 'separation' by sliding panels away along their shared joints
+                for j in range(1, 4):
+                    # Calculate the unshifted hinge vector
+                    B = W_flat[j] - V_flat[j]
+                    norm_B = np.linalg.norm(B)
+                    n = np.array([u[1], -u[0]]) if (norm_B > 1e-9 and (u := B / norm_B) is not None) else np.array(
+                        [1.0, 0.0])
+
+                    # Push the current panel and all subsequent panels outward
+                    shift = separation * n
+                    for k in range(j, 4):
+                        for m in range(4):
+                            panel_coords[k][m] += shift
+
+                # 5. Determine the boundary box of the unrolled row and align it to the layout grid
+                all_x = [pt[0] for panel in panel_coords for pt in panel]
+                all_y = [pt[1] for panel in panel_coords for pt in panel]
+
+                min_x, max_x = min(all_x), max(all_x)
+                min_y, max_y = min(all_y), max(all_y)
+
+                shift_x = -min_x
+                shift_y = -min_y + current_y
+
+                for panel in panel_coords:
+                    for pt in panel:
+                        pt[0] += shift_x
+                        pt[1] += shift_y
+
+                # 6. Extrude the 2D coordinates into 3D geometry (Z-Up)
+                for panel in panel_coords:
+                    panel_verts = []
+                    # Base Face (Z = 0)
+                    for pt in panel:
+                        panel_verts.append((pt[0], 0.0, pt[1]))
+                    # Top Face (Z = model_thickness)
+                    for pt in panel:
+                        panel_verts.append((pt[0], model_thickness, pt[1]))
+
+                    # Append geometry and update global vertex indexing
+                    v_offset = len(all_verts)
+                    all_verts.extend(panel_verts)
+
+                    local_faces = [
+                        [4, 3, 2, 1],  # Bottom face (Facing -Z)
+                        [5, 6, 7, 8],  # Top face (Facing +Z)
+                        [1, 2, 6, 5],  # Side 1
+                        [2, 3, 7, 6],  # Side 2
+                        [3, 4, 8, 7],  # Side 3
+                        [4, 1, 5, 8]  # Side 4
+                    ]
+
+                    for face in local_faces:
+                        global_face = [idx + v_offset for idx in face]
+                        all_faces.append(global_face)
+
+                # Shift the next tube segment (row) upward on the print bed
+                current_y += (max_y - min_y) + separation
+
+            # 7. Output the single multi-solid flat pattern
+            filename = "all_panels_layout.step"
+            self._write_step_file(filename, all_verts, all_faces)
+
+        return
+
+    #another addition of mine
+    def combined_panels_with_real_holes(self, model_thickness, scale, separation=0.1, hole_radius=0.0625):
+        """Generate a single STEP file containing all tube segments unrolled onto the XY plane.
+
+        This function unrolls each 4-panel tube segment, aligns the flat pattern to the XY plane,
+        applies local separations, and natively cuts actual screw holes directly into the panel
+        meshes using a continuous 2D perimeter notch algorithm.
+        """
+        def find_vertex(A, B, a, b, side='ccw'):
+            d = np.linalg.norm(B - A)
+            if d < 1e-9: return A + np.array([a, 0.0])
+            if d > (a + b): d = a + b
+            elif d < abs(a - b): d = abs(a - b)
+
+            x = (a ** 2 - b ** 2 + d ** 2) / (2 * d)
+            y = np.sqrt(max(0.0, a ** 2 - x ** 2))
+            u = (B - A) / d
+            u_perp = np.array([-u[1], u[0]]) if side == 'ccw' else np.array([u[1], -u[0]])
+            return A + x * u + y * u_perp
+
+        if self.num_sections > 1:
+            all_verts = []
+            all_faces = []
+            current_y = 0.0
+
+            for i in range(len(self.boxes) - 1):
+                b1 = self.boxes[i]
+                b2 = self.boxes[i + 1]
+
+                V = [np.array(b1[k][:3]) for k in range(4)] + [np.array(b1[0][:3])]
+                W = [np.array(b2[k][:3]) for k in range(4)] + [np.array(b2[0][:3])]
+
+                V_flat, W_flat = [None] * 5, [None] * 5
+                V_flat[0] = np.array([0.0, 0.0])
+                W_flat[0] = np.array([0.0, np.linalg.norm(W[0] - V[0])])
+
+                for k in range(4):
+                    V_flat[k + 1] = find_vertex(W_flat[k], V_flat[k], np.linalg.norm(W[k] - V[k + 1]), np.linalg.norm(V[k] - V[k + 1]), side='ccw')
+                    W_flat[k + 1] = find_vertex(V_flat[k + 1], W_flat[k], np.linalg.norm(V[k + 1] - W[k + 1]), np.linalg.norm(W[k] - W[k + 1]), side='cw')
+
+                panel_coords = [[V_flat[j].copy(), V_flat[j + 1].copy(), W_flat[j + 1].copy(), W_flat[j].copy()] for j in range(4)]
+
+                # Apply Separation
+                for j in range(1, 4):
+                    B = W_flat[j] - V_flat[j]
+                    norm_B = np.linalg.norm(B)
+                    n = np.array([u[1], -u[0]]) if (norm_B > 1e-9 and (u := B / norm_B) is not None) else np.array([1.0, 0.0])
+                    shift = separation * n
+                    for k in range(j, 4):
+                        for m in range(4):
+                            panel_coords[k][m] += shift
+
+                # Align to Grid
+                all_x = [pt[0] for panel in panel_coords for pt in panel]
+                all_y = [pt[1] for panel in panel_coords for pt in panel]
+                shift_x, shift_y = -min(all_x), -min(all_y) + current_y
+
+                for panel in panel_coords:
+                    for pt in panel:
+                        pt[0] += shift_x
+                        pt[1] += shift_y
+
+                # Generate Perimeters with Native Notched Holes
+                for panel in panel_coords:
+                    panel_2d_verts = []
+                    epsilon = 0.001       # Micro-width for the slit to prevent self-intersection
+                    vert_spacing = 0.438  # Spacing between the 2 holes in a group
+                    edge_dist = 0.188     # Distance inward from the edge
+
+                    for edge_idx in range(4):
+                        P0 = panel[edge_idx]
+                        P1 = panel[(edge_idx + 1) % 4]
+
+                        edge_vec = P1 - P0
+                        L = np.linalg.norm(edge_vec)
+                        if L < 1e-5:
+                            panel_2d_verts.append(P0)
+                            continue
+
+                        T = edge_vec / L
+                        N = np.array([-T[1], T[0]]) # CCW Inward Normal
+
+                        # Placement Logic
+                        if edge_idx in [0, 2]: # Top and bottom edges (Inter-segment connections)
+                            if L > 1.5:
+                                margin = min(0.5, L / 3.0)
+                                group_centers = [margin, L - margin]
+                            else:
+                                group_centers = [L / 2.0]
+                        else: # Side seams (Intra-segment connections)
+                            group_centers = [L / 2.0]
+
+                        hole_distances = []
+                        for center_dist in group_centers:
+                            hole_distances.extend([center_dist - vert_spacing / 2.0, center_dist + vert_spacing / 2.0])
+                        hole_distances.sort()
+
+                        panel_2d_verts.append(P0)
+
+                        for d in hole_distances:
+                            if d < hole_radius or d > (L - hole_radius):
+                                continue # Safely skip if the segment is physically too short
+
+                            C = P0 + d * T + edge_dist * N
+                            Edge_Entry = P0 + d * T
+
+                            P_in = Edge_Entry - epsilon * T
+                            P_out = Edge_Entry + epsilon * T
+
+                            H_in = C - hole_radius * N - epsilon * T
+                            H_out = C - hole_radius * N + epsilon * T
+
+                            panel_2d_verts.extend([P_in, H_in])
+
+                            # Trace the octagonal hole strictly clockwise to form the cutout
+                            for i in range(1, 8):
+                                theta = -np.pi/2 - i * (2 * np.pi / 8)
+                                hx = C[0] + hole_radius * (np.cos(theta)*T[0] + np.sin(theta)*N[0])
+                                hy = C[1] + hole_radius * (np.cos(theta)*T[1] + np.sin(theta)*N[1])
+                                panel_2d_verts.append(np.array([hx, hy]))
+
+                            panel_2d_verts.extend([H_out, P_out])
+
+                    # 3D Extrusion (Fixed Z-Axis Logic)
+                    v_offset = len(all_verts)
+                    N_verts = len(panel_2d_verts)
+
+                    # Bottom Face (Z = 0)
+                    for pt in panel_2d_verts:
+                        all_verts.append((pt[0], pt[1], 0.0))
+                    # Top Face (Z = model_thickness)
+                    for pt in panel_2d_verts:
+                        all_verts.append((pt[0], pt[1], model_thickness))
+
+                    # Topology Assembly
+                    all_faces.append([v_offset + i for i in range(N_verts, 0, -1)])        # Bottom
+                    all_faces.append([v_offset + N_verts + i for i in range(1, N_verts + 1)]) # Top
+
+                    for i in range(N_verts):
+                        v1 = i + 1
+                        v2 = (i + 1) % N_verts + 1
+                        v3 = v2 + N_verts
+                        v4 = v1 + N_verts
+                        all_faces.append([v_offset + v1, v_offset + v2, v_offset + v3, v_offset + v4])
+
+                current_y += (max(all_y) - min(all_y)) + separation
+
+            self._write_step_file("all_panels_layout_with_holes.step", all_verts, all_faces)
+
+        return
+
  
  
 def make_synthetic_boxes(n_sections=4, side=0.2, length=0.3):

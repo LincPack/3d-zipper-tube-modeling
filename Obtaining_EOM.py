@@ -23,7 +23,6 @@ M_a = M.subs(tube.alpha, a)
 sp.pprint(sp.limit(M_a, a, 0))
 
 # export_symbolic_expression_to_pdf(tube.boxes, filename='boxes5.pdf', output_dir='control')
-
 # print(tube.get_EOM())
 # tube.get_panel_energies()
 # print(tube.energies)

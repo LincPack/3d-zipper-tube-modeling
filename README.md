@@ -1,145 +1,228 @@
-# 3D_Zipper_Tube_Modeling
+# 3D Zipper Tube Modeling
 
-This repository provides a way to model any zipper tube, provided the user can supply angles and lengths for the tube.
-
-A Python package (`zipper-tube`) wraps the core `Tube` class; the API is exposed via
-```python
-from zipper_tube import Tube
-```
-
-
-## Virtual Enviroment Information
-
-### Introduction
-Creating a virtual enviroment in python is a great way to seperate different coding projects on your system. A virtual enviroment allows you to select an interpreter, download project-specific packages, and run code so that the code will work the same for anyone on any system. The virtual enviroment takes packages listed in the requirements.txt file and downloads those specific files. 
-
-It is important to note that this step is not necessary. It just provides a great way to organize things on your computer.
-
-### Setup
-- Clone the repository and optionally create a virtual environment in the project folder (e.g. `python -m venv .venv`).
-- Activate the environment (`source .venv/bin/activate` on macOS/Linux or `.venv\Scripts\activate.bat` on Windows).
-- Install the package and development dependencies:
-  ```sh
-  pip install -e .[dev]
-  ```
-  (or `pip install .` for a normal install; `requirements.txt` is kept for compatibility.)
-
-
-## Usage
-
-### Creating a Tube
+This repository models zipper-tube geometry as a set of connected box/face segments. The main entry point is the `Tube` class in `zipper_tube/__init__.py`.
 
 ```python
 from zipper_tube import Tube
-
-# Create a tube with width 10, height 5, default angles
-tube = Tube(10, 5)
 ```
 
-### Adding Joints
+The class supports:
+- manually defining tube segments with `add_joint(...)`
+- generating a tube from helical parameter values with `get_tube_from_params(...)`
+- plotting the geometry with `visualize(...)`
+- exporting STL/STEP/DXF meshes for fabrication or simulation
+- writing MuJoCo XML geometry for physics workflows
 
-Add segments to the tube by specifying length and angles (in degrees):
+## Installation
 
-```python
-# Add a joint: length 20, theta 90°, gamma 90°
-tube.add_joint(20, 90, 90)
+Clone the repository and install it into a virtual environment:
 
-# Add another joint
-tube.add_joint(15, 45, 60)
+```bash
+git clone https://github.com/LincPack/3D_Zipper_Tube_Modeling.git
+cd 3D_Zipper_Tube_Modeling
+python -m venv .venv
+
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+
+pip install -r requirements.txt
+# or, for an editable install:
+pip install -e .
+
+# If your environment raises "ModuleNotFoundError: No module named 'ffmpeg'",
+# install the Python binding explicitly:
+pip install ffmpeg-python
 ```
 
-### Visualization
+## Basic usage
 
-Visualize the tube as reflecting planes or physical tube:
+### Create a tube and add joints manually
+
+`Tube(width, height, alpha=90, theta=90, gamma=90)` uses degree-based inputs for the initial joint orientation.
 
 ```python
-# Show reflecting planes (default)
-tube.visualize()
+from zipper_tube import Tube
 
-# Show physical tube
+# Create a basic tube model
+# width and height are in the same length units as the rest of the geometry
+tube = Tube(width=1.0, height=1.0, alpha=90, theta=90, gamma=90)
+
+# Add one or more segments. The values are in degrees.
+tube.add_joint(l=0.5, theta=65, gamma=90)
+tube.add_joint(l=0.7, theta=80, gamma=110)
+tube.add_joint(l=0.6, theta=70, gamma=95)
+
+print("sections:", tube.num_sections)
+print("number of boxes:", len(tube.boxes))
+```
+
+### Visualize the tube
+
+`visualize` uses `rep_method` to switch the plotting mode.
+
+```python
+# Show reflecting planes
+tube.visualize(rep_method='p')
+
+# Show the physical tube mesh/solid representation
+tube.visualize(rep_method='t')
+
+# Show a centerline/path-style representation
+tube.visualize(rep_method='m')
+```
+
+`rep_method` values:
+- `'p'`: reflecting planes
+- `'t'`: physical tube
+- `'m'`: path/centerline plot
+
+### Animate the tube
+
+```python
+# Open an animation window and optionally save it as a video.
+tube.show_animation(save=False, rep_method='t')
+```
+
+This creates a rolling/deployment animation using the current tube geometry.
+
+## Generate a tube from helical parameters
+
+The package also exposes parameterized geometry generation through `get_tube_from_params(...)`.
+
+```python
+import numpy as np
+from zipper_tube import Tube
+
+# Create a helical zipper tube from a radius and curve parameters
+tube = Tube(width=1.0, height=1.0)
+tube.get_tube_from_params(R=2.0, n=4, T=2 * np.pi, offset_curve=True)
+
+# Print the computed parameter table for debugging
+# tube.print_params(gammas, thetas, Ls)
+
+# Visualize the generated geometry
 tube.visualize(rep_method='t')
 ```
 
-![Demo](assets/Static.png)
+This is useful when you want to generate the tube from a smooth path instead of manually specifying each joint.
 
-### Animation
+### Worked example: a planar circular curve
 
-Display a folding animation:
+The default `main_curve_pt` helper describes a helix, with `z = t`. To use a
+planar circle instead, edit `Tube.main_curve_pt` in
+`zipper_tube/__init__.py`. The class method takes `self`, `R`, and `t`, so use:
 
 ```python
-# Show animation and save as GIF
-tube.show_animation(save=True)
+def main_curve_pt(self, R, t):
+    return np.array([R * np.cos(t), R * np.sin(t), np.zeros_like(t)])
 ```
 
-![Demo](assets/GIF.gif)
-
-### Exporting Panels
-
-Export panel outlines to DXF files or STEP file for CAD:
+Then generate the tube from that curve and display its physical representation:
 
 ```python
-# Export each panel to separate DXF files
-tube.export_panels_dxf(filename_prefix="mypanels", scale=1.0)
+import matplotlib.pyplot as plt
+import numpy as np
+from zipper_tube import Tube
 
-# Export all panels to one file with custom layer
-tube.export_panels_dxf(filename_prefix="combined", scale=1.0,
-                        layer_name="panels", single_file=True)
-
-# Export all panels to seperate STEP files
-
-tube.create_prototype(model_thickness = 1, scale = 1)
+tube = Tube(width=1.0, height=1.0)
+tube.get_tube_from_params(R=2.0, n=4, T=2 * np.pi, offset_curve=False)
+tube.visualize(rep_method="t")
+plt.show()
 ```
-<img src="assets/STEP.png" alt="Demo" width="400">
 
-### Inspecting Coordinates
+`visualize(rep_method="t")` already calls `plt.show()` in the current
+implementation, so the final `plt.show()` is optional. Use `offset_curve=False`
+to generate the tube along the customized main curve.
 
-Print corner coordinates for debugging:
+## Export geometry for fabrication or simulation
+
+### Export STL meshes
 
 ```python
+# Write per-panel STL files into the stls/ directory
+# The files are named panel_s<i>_f<j>.stl
+tube.create_prototypes_stl(model_thickness=0.05, scale=1.0, binary=True)
+```
+
+### Export STEP files
+
+```python
+# Generate STEP panel prototypes (panel_s<i>_f<j>.step)
+tube.create_prototypes(model_thickness=0.05, scale=1.0)
+```
+
+### Export DXF panel outlines
+
+```python
+# Single set of panel outlines as separate DXF files
+tube.export_panels_dxf(filename_prefix="panel", scale=1.0)
+
+# Combine all panel outlines into one DXF layer
+tube.export_panels_dxf(
+    filename_prefix="combined_panels",
+    scale=1.0,
+    layer_name="zipper_tube",
+    single_file=True,
+)
+```
+
+## Produce MuJoCo XML
+
+The library can also emit a physics scene XML that references the generated STL panels.
+
+```python
+# Writes a MuJoCo XML file and loads panel meshes from ./stls
+# Use Physics_Sim/Triple_tube.xml as a target path for the simulation scene
+tube.produce_XML(
+    filename="Physics_Sim/Triple_tube.xml",
+    panel_thickness=0.01,
+    mass=1.0,
+    gravity=(0.0, 0.0, -9.81),
+    timestep=0.002,
+)
+```
+
+This is useful when creating a simulation-ready version of the zipper tube in MuJoCo.
+
+## Debugging and inspection helpers
+
+```python
+# Print all segment corner coordinates
 tube.print_points()
+
+# Plot end-effector / path information
+tube.show_path(rep_method='m')
 ```
 
-## API Reference
+## Example script
 
-### Tube(width, height, alpha=90, theta=90, gamma=90)
+A minimal end-to-end example looks like this:
 
-Create a new zipper tube model.
+```python
+import numpy as np
+from zipper_tube import Tube
 
-- **width**: Length of parallelogram sides along x-axis
-- **height**: Height along z-axis  
-- **alpha**: Deployment angle degrees (default 90)
-- **theta**: Initial rotation about x in degrees (default 90)
-- **gamma**: Initial rotation about z in degrees (default 90)
+# Manual tube specification
+tube = Tube(1.0, 1.0)
+tube.add_joint(0.6, 60, 90)
+tube.add_joint(0.8, 75, 100)
 
-### add_joint(l, theta, gamma)
+# Alternate: generate from helical parameters
+# tube = Tube(1.0, 1.0)
+# tube.get_tube_from_params(R=2.0, n=4, T=2 * np.pi, offset_curve=True)
 
-Add a new segment to the tube.
+# Show the geometry
+tube.visualize(rep_method='t')
 
-- **l**: Length of the segment
-- **theta**: X-axis rotation angle in degrees
-- **gamma**: Z-axis rotation angle in degrees
+# Export mesh files
+tube.create_prototypes_stl(model_thickness=0.05, binary=True)
+```
 
-### visualize(rep_method='p')
+## Notes
 
-Display a 3D plot of the tube.
-
-- **rep_method**: 'p' for reflecting planes, 't' for physical tube
-
-### show_animation(save=True)
-
-Show a rotating animation of the tube folding.
-
-- **save**: Whether to save animation as 'tube_animation.gif'
-
-### export_panels_dxf(filename_prefix="panel", scale=1.0, layer_name="0", single_file=False)
-
-Export panel outlines to DXF files.
-
-- **filename_prefix**: Base name for output files
-- **scale**: Scaling factor for coordinates
-- **layer_name**: DXF layer name
-- **single_file**: If True, combine all panels into one file
-
-### print_points()
-
-Print corner coordinates of all segments to console.
+- All angle arguments are supplied in degrees, even though internal storage converts them to radians.
+- `Tube` is a geometry generator; the resulting mesh/scene files are written to the current working directory unless you specify explicit output paths.
+- For simulation and animation workflows, it is often easiest to generate the geometry first, then call the visualization/export methods on the finished `Tube` object.
